@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Интерфейс нигде не рассчитан на тёмную тему (нет ни одного dark:-варианта) —
+     фиксируем светлую схему явно, иначе браузер в тёмном режиме ОС красит
+     нативные элементы (чекбоксы, поля) и часть фона под dark, а весь текст
+     остаётся жёстко светлым по коду, из-за чего он становится нечитаемым. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -10,13 +15,6 @@
   --color-foreground: var(--foreground);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

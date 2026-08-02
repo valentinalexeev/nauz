@@ -81,7 +81,9 @@ export default async function DashboardPage() {
                 key={story.id}
                 className="rounded-lg border border-neutral-200 px-4 py-3"
               >
-                {story.title}
+                <Link href={`/stories/${story.id}`} className="underline">
+                  {story.title}
+                </Link>
               </li>
             ))}
           </ul>
