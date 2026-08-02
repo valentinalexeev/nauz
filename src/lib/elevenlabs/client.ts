@@ -76,7 +76,7 @@ export interface GenerateSpeechParams {
 export async function generateSpeech({
   voiceId,
   text,
-  modelId = "eleven_multilingual_v2",
+  modelId = "eleven_v3",
 }: GenerateSpeechParams): Promise<ArrayBuffer> {
   const res = await fetch(`${ELEVENLABS_API_BASE}/text-to-speech/${voiceId}`, {
     method: "POST",
