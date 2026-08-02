@@ -67,7 +67,16 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   async function startRecording() {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Отключаем шумоподавление/автоусиление/эхоподавление: браузер по
+      // умолчанию агрессивно чистит сигнал с микрофона, что искажает тембр
+      // голоса и заметно ухудшает качество клонирования в ElevenLabs.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       streamRef.current = stream;
 
       const mimeType = pickSupportedMimeType();
