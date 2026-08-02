@@ -63,8 +63,11 @@ export async function POST(
 
     if (uploadError) throw uploadError;
 
+    // Имя в ElevenLabs должно позволять сопоставить голос с пользователем
+    // Науз — иначе в списке голосов аккаунта видно только ярлык вида
+    // "Папа", без понимания, чей это профиль.
     const { voiceId: elevenlabsVoiceId } = await cloneVoice({
-      name: voice.label,
+      name: `Науз: ${user.email} — ${voice.label}`,
       files: [audio],
     });
 
