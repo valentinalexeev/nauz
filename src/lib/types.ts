@@ -47,6 +47,19 @@ export interface Story {
   kind: StoryKind;
   title: string;
   text: string;
+  templateId: string | null; // шаблон-источник для fairy_tale, null для letter
+  createdAt: string;
+}
+
+// Готовый текст сказки: text_plain — для отображения пользователю,
+// text_marked — с разметкой ElevenLabs (интонационные теги, ударения),
+// отправляется в TTS вместо text_plain.
+export interface StoryTemplate {
+  id: string;
+  title: string;
+  language: string; // ISO 639-1, например "ru"
+  textPlain: string;
+  textMarked: string;
   createdAt: string;
 }
 

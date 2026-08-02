@@ -5,6 +5,13 @@ import { generateSpeech } from "@/lib/elevenlabs/client";
 import { embedWatermark } from "@/lib/watermark";
 import type { StoryKind } from "@/lib/types";
 
+const ALLOWED_SPEEDS = [0.8, 0.9, 1.0, 1.1, 1.2];
+const LETTER_LANGUAGE_CODE = "ru"; // единственный язык интерфейса (см. <html lang="ru">)
+
+type GenerateRequestBody =
+  | { voiceId: string; kind: "letter"; title: string; text: string; speed?: number }
+  | { voiceId: string; kind: "fairy_tale"; templateId: string; speed?: number };
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -15,18 +22,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { voiceId, kind, title, text } = (await request.json()) as {
-    voiceId: string;
-    kind: StoryKind;
-    title: string;
-    text: string;
-  };
+  const body = (await request.json()) as GenerateRequestBody;
+  const speed = body.speed ?? 1.0;
+
+  if (!ALLOWED_SPEEDS.includes(speed)) {
+    return NextResponse.json({ error: "invalid speed" }, { status: 400 });
+  }
 
   // Проверяем, что голос принадлежит пользователю и готов к использованию
   const { data: voice } = await supabase
     .from("voices")
     .select("*")
-    .eq("id", voiceId)
+    .eq("id", body.voiceId)
     .eq("owner_id", user.id)
     .eq("status", "ready")
     .single();
@@ -35,9 +42,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "voice not ready" }, { status: 400 });
   }
 
+  let kind: StoryKind;
+  let title: string;
+  let displayText: string;
+  let ttsText: string;
+  let languageCode: string;
+  let templateId: string | null;
+
+  if (body.kind === "fairy_tale") {
+    const { data: template } = await supabase
+      .from("story_templates")
+      .select("*")
+      .eq("id", body.templateId)
+      .single();
+
+    if (!template) {
+      return NextResponse.json({ error: "template not found" }, { status: 404 });
+    }
+
+    kind = "fairy_tale";
+    title = template.title;
+    displayText = template.text_plain;
+    ttsText = template.text_marked;
+    languageCode = template.language;
+    templateId = template.id;
+  } else {
+    kind = "letter";
+    title = body.title;
+    displayText = body.text;
+    ttsText = body.text;
+    languageCode = LETTER_LANGUAGE_CODE;
+    templateId = null;
+  }
+
   const { data: story, error: storyError } = await supabase
     .from("stories")
-    .insert({ owner_id: user.id, kind, title, text })
+    .insert({
+      owner_id: user.id,
+      kind,
+      title,
+      text: displayText,
+      template_id: templateId,
+    })
     .select()
     .single();
 
@@ -60,7 +106,9 @@ export async function POST(request: Request) {
   try {
     const audio = await generateSpeech({
       voiceId: voice.elevenlabs_voice_id,
-      text,
+      text: ttsText,
+      languageCode,
+      speed,
     });
     const { audio: watermarkedAudio, watermarkId } = await embedWatermark(
       audio,

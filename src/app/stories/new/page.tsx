@@ -3,15 +3,26 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { Voice, StoryKind } from "@/lib/types";
+import type { Voice, StoryKind, StoryTemplate } from "@/lib/types";
+
+const SPEED_OPTIONS = [
+  { value: 0.8, label: "0.8× — медленнее" },
+  { value: 0.9, label: "0.9× — чуть медленнее" },
+  { value: 1.0, label: "1.0× — обычная" },
+  { value: 1.1, label: "1.1× — чуть быстрее" },
+  { value: 1.2, label: "1.2× — быстрее" },
+];
 
 export default function NewStoryPage() {
   const router = useRouter();
   const [voices, setVoices] = useState<Voice[]>([]);
+  const [templates, setTemplates] = useState<StoryTemplate[]>([]);
   const [voiceId, setVoiceId] = useState("");
   const [kind, setKind] = useState<StoryKind>("fairy_tale");
+  const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
+  const [speed, setSpeed] = useState(1.0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +33,11 @@ export default function NewStoryPage() {
       .select("*")
       .eq("status", "ready")
       .then(({ data }) => setVoices((data as Voice[]) ?? []));
+    supabase
+      .from("story_templates")
+      .select("*")
+      .order("title", { ascending: true })
+      .then(({ data }) => setTemplates((data as StoryTemplate[]) ?? []));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -29,10 +45,15 @@ export default function NewStoryPage() {
     setSubmitting(true);
     setError(null);
 
+    const body =
+      kind === "fairy_tale"
+        ? { voiceId, kind, templateId, speed }
+        : { voiceId, kind, title, text, speed };
+
     const res = await fetch("/api/stories/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voiceId, kind, title, text }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -44,6 +65,9 @@ export default function NewStoryPage() {
     const { storyId } = (await res.json()) as { storyId: string };
     router.push(`/stories/${storyId}`);
   }
+
+  const canSubmit =
+    voiceId && (kind === "fairy_tale" ? templateId : title && text);
 
   return (
     <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-8">
@@ -97,28 +121,72 @@ export default function NewStoryPage() {
             </label>
           </div>
 
-          <input
-            required
-            placeholder="Название"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
-          />
+          {kind === "fairy_tale" ? (
+            templates.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                Пока нет ни одной готовой сказки.
+              </p>
+            ) : (
+              <label className="flex flex-col gap-2 text-sm">
+                Какую сказку озвучить?
+                <select
+                  required
+                  value={templateId}
+                  onChange={(e) => setTemplateId(e.target.value)}
+                  className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
+                >
+                  <option value="" disabled>
+                    Выберите сказку
+                  </option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          ) : (
+            <>
+              <input
+                required
+                placeholder="Название"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
+              />
 
-          <textarea
-            required
-            rows={10}
-            placeholder="Текст сказки или письма..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
-          />
+              <textarea
+                required
+                rows={10}
+                placeholder="Текст письма..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
+              />
+            </>
+          )}
+
+          <label className="flex flex-col gap-2 text-sm">
+            Скорость речи
+            <select
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
+            >
+              {SPEED_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !canSubmit}
             className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors disabled:opacity-50"
           >
             {submitting ? "Создаём аудио..." : "Создать запись"}

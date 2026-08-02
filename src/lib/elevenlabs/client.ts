@@ -64,6 +64,10 @@ export async function cloneVoice({
 export interface GenerateSpeechParams {
   voiceId: string;
   text: string;
+  /** ISO 639-1, например "ru" — передаётся явно, без угадывания моделью. */
+  languageCode: string;
+  /** 0.7–1.2, по умолчанию 1.0 (обычная скорость). */
+  speed?: number;
   modelId?: string;
 }
 
@@ -76,6 +80,8 @@ export interface GenerateSpeechParams {
 export async function generateSpeech({
   voiceId,
   text,
+  languageCode,
+  speed = 1.0,
   modelId = "eleven_v3",
 }: GenerateSpeechParams): Promise<ArrayBuffer> {
   const res = await fetch(`${ELEVENLABS_API_BASE}/text-to-speech/${voiceId}`, {
@@ -87,7 +93,8 @@ export async function generateSpeech({
     body: JSON.stringify({
       text,
       model_id: modelId,
-      voice_settings: { stability: 0.5, similarity_boost: 0.85 },
+      language_code: languageCode,
+      voice_settings: { stability: 0.5, similarity_boost: 0.85, speed },
     }),
   });
 
