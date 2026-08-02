@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -35,7 +36,12 @@ export default async function StoryPage({
 
   return (
     <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{story.title}</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">{story.title}</h1>
+        <Link href="/dashboard" className="text-sm text-neutral-500 underline">
+          ← назад в дашборд
+        </Link>
+      </div>
 
       {generation?.status === "processing" && (
         <p className="text-sm text-neutral-500">Готовим аудио...</p>

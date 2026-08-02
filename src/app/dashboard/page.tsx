@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice, Story } from "@/lib/types";
+import { DeleteButton } from "./delete-button";
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
@@ -53,9 +54,15 @@ export default async function DashboardPage() {
                 <Link href={`/voices/${voice.id}`} className="underline">
                   {voice.label}
                 </Link>
-                <span className="text-xs text-neutral-500">
-                  {statusLabel(voice.status)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-neutral-500">
+                    {statusLabel(voice.status)}
+                  </span>
+                  <DeleteButton
+                    endpoint={`/api/voices/${voice.id}`}
+                    confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -79,11 +86,15 @@ export default async function DashboardPage() {
             {(stories as Story[]).map((story) => (
               <li
                 key={story.id}
-                className="rounded-lg border border-neutral-200 px-4 py-3"
+                className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between"
               >
                 <Link href={`/stories/${story.id}`} className="underline">
                   {story.title}
                 </Link>
+                <DeleteButton
+                  endpoint={`/api/stories/${story.id}`}
+                  confirmMessage={`Удалить запись «${story.title}»? Это действие необратимо.`}
+                />
               </li>
             ))}
           </ul>
