@@ -3,6 +3,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs/client";
 
+function extensionForAudioMimeType(mimeType: string): string {
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("wav")) return "wav";
+  return "webm";
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -24,13 +31,15 @@ export async function POST(
     return NextResponse.json({ error: "audio sample required" }, { status: 400 });
   }
 
-  // Проверяем, что голос принадлежит пользователю и прошёл KYC
+  // Проверяем, что голос принадлежит пользователю и прошёл KYC.
+  // "failed" тоже допускается — так можно повторить попытку клонирования
+  // тем же голосом после сбоя, не создавая новую запись и не проходя KYC заново.
   const { data: voice } = await supabase
     .from("voices")
     .select("*")
     .eq("id", voiceId)
     .eq("owner_id", user.id)
-    .eq("status", "kyc_approved")
+    .in("status", ["kyc_approved", "failed"])
     .single();
 
   if (!voice) {
@@ -44,7 +53,7 @@ export async function POST(
   await admin.from("voices").update({ status: "cloning" }).eq("id", voice.id);
 
   try {
-    const samplePath = `${user.id}/${voice.id}.webm`;
+    const samplePath = `${user.id}/${voice.id}.${extensionForAudioMimeType(audio.type)}`;
     const { error: uploadError } = await admin.storage
       .from("voice-samples")
       .upload(samplePath, audio, {

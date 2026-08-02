@@ -8,6 +8,16 @@ function apiKey() {
   return key;
 }
 
+// Расширение файла должно отражать реальный контейнер записи: Safari
+// пишет MediaRecorder-вывод в MP4/AAC, а не в WebM/WAV, и подпись файла
+// не по формату может сбить с толку детектор формата на стороне ElevenLabs.
+function extensionForAudioMimeType(mimeType: string): string {
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("wav")) return "wav";
+  return "webm";
+}
+
 export interface CloneVoiceParams {
   name: string;
   description?: string;
@@ -33,7 +43,9 @@ export async function cloneVoice({
   const form = new FormData();
   form.set("name", name);
   if (description) form.set("description", description);
-  files.forEach((file, i) => form.append("files", file, `sample-${i}.wav`));
+  files.forEach((file, i) =>
+    form.append("files", file, `sample-${i}.${extensionForAudioMimeType(file.type)}`),
+  );
 
   const res = await fetch(`${ELEVENLABS_API_BASE}/voices/add`, {
     method: "POST",

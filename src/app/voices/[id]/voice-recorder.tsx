@@ -15,6 +15,32 @@ const HINT_TEXT = `Лиса и Журавль (отрывок)
 
 type RecorderState = "idle" | "recording" | "recorded" | "uploading";
 
+// Safari (WebKit) не поддерживает контейнер WebM в MediaRecorder и пишет
+// в MP4/AAC — если жёстко подписать Blob как audio/webm, <audio> получит
+// байты одного формата с ярлыком другого и не сможет их декодировать.
+// Поэтому выбираем реально поддерживаемый тип и используем его и для
+// Blob, и для имени файла при отправке.
+const CANDIDATE_MIME_TYPES = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/mp4",
+  "audio/mpeg",
+];
+
+function pickSupportedMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) {
+    return undefined;
+  }
+  return CANDIDATE_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("mpeg")) return "mp3";
+  return "webm";
+}
+
 export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const router = useRouter();
   const [state, setState] = useState<RecorderState>("idle");
@@ -25,6 +51,7 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
+  const mimeTypeRef = useRef<string>("audio/webm");
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -43,7 +70,11 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream);
+      const mimeType = pickSupportedMimeType();
+      mimeTypeRef.current = mimeType ?? "audio/webm";
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -51,7 +82,11 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        // recorder.mimeType — фактический тип, который выбрал браузер;
+        // может отличаться от запрошенного, если тот не поддержан.
+        const actualType = recorder.mimeType || mimeTypeRef.current;
+        mimeTypeRef.current = actualType;
+        const blob = new Blob(chunksRef.current, { type: actualType });
         audioBlobRef.current = blob;
         setAudioUrl(URL.createObjectURL(blob));
         setState("recorded");
@@ -97,7 +132,8 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
     setError(null);
 
     const formData = new FormData();
-    formData.append("audio", audioBlobRef.current, "sample.webm");
+    const ext = extensionForMimeType(mimeTypeRef.current);
+    formData.append("audio", audioBlobRef.current, `sample.${ext}`);
 
     const res = await fetch(`/api/voices/${voiceId}/clone`, {
       method: "POST",

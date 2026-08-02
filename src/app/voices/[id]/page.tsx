@@ -68,9 +68,13 @@ function VoiceStatusPanel({ voice }: { voice: Voice }) {
       );
     case "failed":
       return (
-        <p className="text-sm text-red-600">
-          Не удалось создать голос. Попробуйте добавить голос заново.
-        </p>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-red-600">
+            Не удалось создать голос из прошлой попытки. Можно записать
+            образец ещё раз.
+          </p>
+          <VoiceRecorder voiceId={voice.id} />
+        </div>
       );
     case "revoked":
       return (
