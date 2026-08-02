@@ -1,0 +1,10 @@
+project_id = "nauz"
+
+[auth]
+enable_signup = true
+enable_confirmations = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
