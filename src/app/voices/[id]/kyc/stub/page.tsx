@@ -31,7 +31,7 @@ export default async function KycStubPage({
       .from("voices")
       .update({ status: "kyc_approved" })
       .eq("id", id);
-    redirect("/dashboard");
+    redirect(`/voices/${id}`);
   }
 
   return (

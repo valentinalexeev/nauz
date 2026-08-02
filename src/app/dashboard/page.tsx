@@ -50,7 +50,9 @@ export default async function DashboardPage() {
                 key={voice.id}
                 className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between"
               >
-                <span>{voice.label}</span>
+                <Link href={`/voices/${voice.id}`} className="underline">
+                  {voice.label}
+                </Link>
                 <span className="text-xs text-neutral-500">
                   {statusLabel(voice.status)}
                 </span>
