@@ -1,9 +1,19 @@
+import Image from "next/image";
 import Link from "next/link";
+import nauzKnot from "../../public/nauz-knot.png";
 
 export default function LandingPage() {
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-6 py-24 text-center gap-8">
-      <div className="max-w-2xl flex flex-col gap-6">
+      <div className="max-w-2xl flex flex-col gap-6 items-center">
+        <Image
+          src={nauzKnot}
+          alt="Науз — традиционный оберег-узел"
+          width={200}
+          height={200}
+          priority
+          className="rounded-full object-cover w-40 h-40 sm:w-52 sm:h-52 shadow-lg ring-1 ring-black/5"
+        />
         <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
           Науз
         </h1>
