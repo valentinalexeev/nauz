@@ -3,13 +3,44 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-export function ShareLink({ url }: { url: string }) {
+export function ShareLink({
+  storyId,
+  baseUrl,
+  token,
+}: {
+  storyId: string;
+  baseUrl: string;
+  token: string;
+}) {
+  const [currentToken, setCurrentToken] = useState(token);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const url = `${baseUrl}/s/${currentToken}`;
 
   async function handleCopy() {
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleRegenerate() {
+    if (
+      !window.confirm(
+        "Старая ссылка перестанет работать. Обновить ссылку для этой записи?",
+      )
+    ) {
+      return;
+    }
+    setRegenerating(true);
+    const res = await fetch(`/api/stories/${storyId}/share`, { method: "POST" });
+    if (res.ok) {
+      const { shareToken } = (await res.json()) as { shareToken: string };
+      setCurrentToken(shareToken);
+    } else {
+      window.alert("Не удалось обновить ссылку");
+    }
+    setRegenerating(false);
   }
 
   return (
@@ -28,6 +59,15 @@ export function ShareLink({ url }: { url: string }) {
           {copied ? "Скопировано" : "Скопировать"}
         </Button>
       </div>
+      <Button
+        type="button"
+        variant="link"
+        onClick={handleRegenerate}
+        disabled={regenerating}
+        className="h-auto w-fit p-0 text-xs text-neutral-500 underline"
+      >
+        {regenerating ? "Обновляем..." : "Обновить ссылку"}
+      </Button>
     </div>
   );
 }

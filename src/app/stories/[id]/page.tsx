@@ -57,7 +57,9 @@ export default async function StoryPage({
 
       {audioUrl && (
         <ShareLink
-          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/s/${story.share_token}`}
+          storyId={story.id}
+          baseUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+          token={story.share_token}
         />
       )}
 
