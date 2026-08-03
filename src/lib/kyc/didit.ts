@@ -65,24 +65,6 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * Форма значения для диагностики без утечки PII: числа/bool/null оставляем
- * как есть (не персональные данные и важны для отладки канонизации чисел),
- * строки заменяем на их длину — так видно структуру payload, но не текст.
- */
-function redactForDebug(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactForDebug);
-  if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const key of Object.keys(value as Record<string, unknown>)) {
-      out[key] = redactForDebug((value as Record<string, unknown>)[key]);
-    }
-    return out;
-  }
-  if (typeof value === "string") return `string(len=${value.length})`;
-  return value;
-}
-
-/**
  * Didit присылает статусы в своей номенклатуре ("Approved"/"Declined"/...),
  * а не в нашей ("approved"/"rejected"/"pending") — остальные промежуточные
  * статусы (Not Started/In Progress/In Review/Abandoned) трактуем как pending,
@@ -108,13 +90,13 @@ interface DiditCreateSessionResponse {
  * Реальный KYC-провайдер через Didit (https://docs.didit.me) — hosted-сессия
  * верификации личности, результат приходит вебхуком на /api/kyc/webhook.
  *
- * Формат подписи (V2) подтверждён по официальному скиллу
- * didit-protocol/skills (skills/didit-verification-management/SKILL.md,
- * раздел "Webhook Events & Signatures"): HMAC-SHA256 не от сырого тела,
- * а от строки `${timestamp}:${canonical_json}`, где canonical_json — JSON
- * с отсортированными ключами и компактными разделителями. Заголовки:
- * X-Signature-V2 (сама подпись) + X-Timestamp (unix-секунды, должен быть
- * не старше 5 минут — защита от replay).
+ * Формат подписи (V2): документация (skills/didit-verification-management/
+ * SKILL.md, раздел "Webhook Events & Signatures") описывает HMAC-SHA256 от
+ * строки `${timestamp}:${canonical_json}`, но по факту (проверено на
+ * реальных вебхуках, включая тестовый из консоли Didit) сервер подписывает
+ * ПРОСТО canonical_json — без префикса timestamp. X-Timestamp остаётся
+ * отдельной защитой от replay (проверяем возраст ≤5 минут), просто не
+ * входит в подписываемое сообщение.
  */
 export const diditKycProvider: KycProvider = {
   name: "didit",
@@ -169,35 +151,11 @@ export const diditKycProvider: KycProvider = {
     };
 
     const canonical = canonicalJson(payload);
-    const hmacHex = (message: string) =>
-      createHmac("sha256", webhookSecret()).update(message).digest("hex");
-    const expected = hmacHex(`${timestamp}:${canonical}`);
+    const expected = createHmac("sha256", webhookSecret())
+      .update(canonical)
+      .digest("hex");
 
     if (!timingSafeEqualHex(signature, expected)) {
-      // Диагностика без утечки PII/секретов: перебираем несколько гипотез
-      // об алгоритме подписи разом (сырое тело как есть, с префиксом
-      // времени и без, канонизация без префикса) — так не нужно гадать
-      // и ждать ещё один вебхук на каждую гипотезу по отдельности.
-      const candidates = {
-        timestampColonCanonical: expected,
-        canonicalOnly: hmacHex(canonical),
-        rawBodyOnly: hmacHex(rawBody),
-        timestampColonRawBody: hmacHex(`${timestamp}:${rawBody}`),
-        simple:
-          payload.session_id && payload.status && payload.webhook_type
-            ? hmacHex(
-                `${timestamp}:${payload.session_id}:${payload.status}:${payload.webhook_type}`,
-              )
-            : undefined,
-      };
-      console.error("kyc webhook: signature mismatch diagnostics", {
-        payloadShape: redactForDebug(payload),
-        canonicalLength: canonical.length,
-        secretLength: webhookSecret().length,
-        signatureReceived: signature,
-        candidates,
-        timestamp,
-      });
       throw new Error("invalid webhook signature");
     }
 
