@@ -8,6 +8,16 @@ export type LiveWaveformProps = HTMLAttributes<HTMLDivElement> & {
   active?: boolean
   processing?: boolean
   deviceId?: string
+  /**
+   * Уже открытый поток с микрофона — если передан, используется вместо
+   * внутреннего getUserMedia и не останавливается при размонтировании
+   * (им управляет вызывающий код). Нужен, когда снаружи уже открыт свой
+   * поток (например, для записи) — второй getUserMedia к тому же
+   * устройству на части оборудования проваливается с NotReadableError
+   * ("устройство уже используется"), из-за чего визуализация молча не
+   * появлялась.
+   */
+  stream?: MediaStream
   barWidth?: number
   barHeight?: number
   barGap?: number
@@ -31,6 +41,7 @@ export const LiveWaveform = ({
   active = false,
   processing = false,
   deviceId,
+  stream: externalStream,
   barWidth = 3,
   barGap = 1,
   barRadius = 1.5,
@@ -231,11 +242,12 @@ export const LiveWaveform = ({
   // Handle microphone setup and teardown
   useEffect(() => {
     if (!active) {
-      if (streamRef.current) {
+      // Внешний поток нам не принадлежит — не останавливаем его чужие треки.
+      if (streamRef.current && !externalStream) {
         streamRef.current.getTracks().forEach((track) => track.stop())
-        streamRef.current = null
         onStreamEnd?.()
       }
+      streamRef.current = null
       if (
         audioContextRef.current &&
         audioContextRef.current.state !== "closed"
@@ -248,6 +260,50 @@ export const LiveWaveform = ({
         animationRef.current = 0
       }
       return
+    }
+
+    const connectAnalyser = (stream: MediaStream) => {
+      streamRef.current = stream
+
+      const AudioContextConstructor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
+      const audioContext = new AudioContextConstructor()
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = fftSize
+      analyser.smoothingTimeConstant = smoothingTimeConstant
+
+      const source = audioContext.createMediaStreamSource(stream)
+      source.connect(analyser)
+
+      audioContextRef.current = audioContext
+      analyserRef.current = analyser
+
+      // Clear history when starting
+      historyRef.current = []
+    }
+
+    if (externalStream) {
+      try {
+        connectAnalyser(externalStream)
+      } catch (error) {
+        onError?.(error as Error)
+        return
+      }
+      return () => {
+        if (
+          audioContextRef.current &&
+          audioContextRef.current.state !== "closed"
+        ) {
+          audioContextRef.current.close()
+          audioContextRef.current = null
+        }
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current)
+          animationRef.current = 0
+        }
+      }
     }
 
     const setupMicrophone = async () => {
@@ -266,26 +322,8 @@ export const LiveWaveform = ({
                 autoGainControl: true,
               },
         })
-        streamRef.current = stream
         onStreamReady?.(stream)
-
-        const AudioContextConstructor =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext })
-            .webkitAudioContext
-        const audioContext = new AudioContextConstructor()
-        const analyser = audioContext.createAnalyser()
-        analyser.fftSize = fftSize
-        analyser.smoothingTimeConstant = smoothingTimeConstant
-
-        const source = audioContext.createMediaStreamSource(stream)
-        source.connect(analyser)
-
-        audioContextRef.current = audioContext
-        analyserRef.current = analyser
-
-        // Clear history when starting
-        historyRef.current = []
+        connectAnalyser(stream)
       } catch (error) {
         onError?.(error as Error)
       }
@@ -314,6 +352,7 @@ export const LiveWaveform = ({
   }, [
     active,
     deviceId,
+    externalStream,
     fftSize,
     smoothingTimeConstant,
     onError,

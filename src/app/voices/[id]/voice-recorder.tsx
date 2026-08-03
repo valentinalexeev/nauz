@@ -63,6 +63,7 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
+  const [waveformError, setWaveformError] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -82,13 +83,16 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
 
   async function startRecording() {
     setError(null);
+    setWaveformError(false);
     try {
       // Отключаем шумоподавление/автоусиление/эхоподавление: браузер по
       // умолчанию агрессивно чистит сигнал с микрофона, что искажает тембр
       // голоса и заметно ухудшает качество клонирования в ElevenLabs.
-      // Это отдельный поток от того, что использует LiveWaveform для
-      // визуализации (там эти опции жёстко включены) — специально не
-      // переиспользуем его, чтобы не портить качество записываемого сэмпла.
+      // Этот же поток передаётся в LiveWaveform (см. JSX ниже) для
+      // визуализации — раньше компонент сам открывал ВТОРОЙ getUserMedia,
+      // и на части оборудования второй запрос к тому же микрофону падал
+      // с NotReadableError ("устройство уже используется"), из-за чего
+      // визуализация молча не появлялась.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -200,13 +204,21 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       {state === "recording" && (
         <div className="flex flex-col gap-4">
           <div className="rounded-lg bg-neutral-100 px-3 py-2">
-            <LiveWaveform
-              active
-              deviceId={deviceId}
-              mode="scrolling"
-              height={48}
-              barColor="var(--foreground)"
-            />
+            {waveformError ? (
+              <p className="py-3 text-center text-xs text-neutral-400">
+                Запись идёт, визуализация недоступна
+              </p>
+            ) : (
+              <LiveWaveform
+                active
+                stream={streamRef.current ?? undefined}
+                deviceId={deviceId}
+                mode="scrolling"
+                height={48}
+                barColor="#171717"
+                onError={() => setWaveformError(true)}
+              />
+            )}
           </div>
           <div className="flex items-center gap-4">
             <span className="relative flex h-3 w-3">
