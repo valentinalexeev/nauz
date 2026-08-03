@@ -8,6 +8,7 @@ import {
   sendMessage,
   sendAudio,
   sendChatAction,
+  setMyCommands,
   answerCallbackQuery,
   getFile,
   downloadFile,
@@ -21,6 +22,15 @@ function siteUrl(): string {
   if (!url) throw new Error("NEXT_PUBLIC_SITE_URL не задан");
   return url;
 }
+
+const ABOUT_NAUZ =
+  "Науз записывает сказки и письма для детей голосом мамы, папы или другого близкого человека — даже когда рядом их нет. " +
+  "Голос клонируется только с явного согласия и после подтверждения личности, а готовую сказку можно слушать прямо тут или на сайте.";
+
+const BOT_COMMANDS = [
+  { command: "voices", description: "🎙 Мои голоса — создать сказку" },
+  { command: "newvoice", description: "➕ Записать новый голосовой слепок" },
+];
 
 const CHAT_ACTION_REFRESH_MS = 4000; // Telegram гасит статус через ~5 сек
 
@@ -135,16 +145,18 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
   if (!text) return;
 
   if (text === "/start") {
+    await setMyCommands(BOT_COMMANDS).catch(() => {});
+
     if (link.user_id) {
       await sendMessage({
         chatId,
-        text: "Вы уже вошли в Науз. Отправьте /voices, чтобы увидеть свои голоса.",
+        text: `${ABOUT_NAUZ}\n\nВы уже вошли. Отправьте /voices, чтобы увидеть свои голоса и создать сказку.`,
       });
     } else {
       await updateLink(chatId, { state: "awaiting_email" });
       await sendMessage({
         chatId,
-        text: "Добро пожаловать в Науз! Пришлите свой email, чтобы войти или зарегистрироваться.",
+        text: `${ABOUT_NAUZ}\n\nЧтобы начать, пришлите свой email — войдём или зарегистрируем новый аккаунт.`,
       });
     }
     return;

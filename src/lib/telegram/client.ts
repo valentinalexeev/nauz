@@ -76,6 +76,17 @@ export async function answerCallbackQuery(callbackQueryId: string): Promise<void
   await callApi("answerCallbackQuery", { callback_query_id: callbackQueryId });
 }
 
+/**
+ * Заполняет меню команд бота (кнопка "/" рядом с полем ввода в Telegram).
+ * Настройка глобальная для бота, не привязана к конкретному чату — вызывать
+ * достаточно один раз, но повторные вызовы безвредны (просто перезапишут).
+ */
+export async function setMyCommands(
+  commands: { command: string; description: string }[],
+): Promise<void> {
+  await callApi("setMyCommands", { commands });
+}
+
 export type ChatAction =
   | "typing"
   | "upload_voice"
