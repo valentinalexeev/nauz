@@ -21,7 +21,10 @@ function siteUrl(): string {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const OTP_RE = /^\d{6}$/;
+// Длина email-OTP в Supabase настраивается в Dashboard (Auth > Providers >
+// Email > Email OTP Length) и не всегда равна 6 — у этого проекта, например,
+// код из 8 цифр. Проверяем разумный диапазон, а не жёсткую длину.
+const OTP_RE = /^\d{6,10}$/;
 
 // Минимальные типы Telegram Update — нам нужны только используемые поля.
 interface TelegramUser {
