@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,22 @@ export default function NewVoicePage() {
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // KYC проходится один раз на человека (см. startKycForVoice) — если у
+  // пользователя уже есть одобренная верификация, шага подтверждения
+  // личности для нового голоса не будет, сразу переходим к записи.
+  // null, пока не узнали точно — до ответа считаем как обычно (KYC нужен),
+  // это самое частое и безопасное умолчание для первого голоса.
+  const [alreadyVerified, setAlreadyVerified] = useState(false);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase
+      .from("kyc_verifications")
+      .select("id")
+      .eq("status", "approved")
+      .limit(1)
+      .then(({ data }) => setAlreadyVerified(Boolean(data?.length)));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,10 +100,9 @@ export default function NewVoicePage() {
 
         <div className="rounded-lg bg-neutral-100 px-4 py-4 text-sm text-neutral-600 flex flex-col gap-3">
           <p>
-            Образец голоса и запись согласия загружаются на следующем шаге,
-            после подтверждения личности через KYC-сервис — это нужно,
-            чтобы клонировать можно было только собственный голос или голос
-            родственника, давшего явное согласие.
+            {alreadyVerified
+              ? "Личность уже подтверждена раньше — образец голоса можно будет записать сразу на следующем шаге."
+              : "Образец голоса загружается на следующем шаге, после подтверждения личности через KYC-сервис — это нужно, чтобы клонировать можно было только собственный голос или голос родственника, давшего явное согласие."}
           </p>
           <label className="flex items-start gap-2">
             <input
@@ -106,7 +121,11 @@ export default function NewVoicePage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <Button type="submit" disabled={submitting} className="rounded-full w-fit">
-          {submitting ? "Создаём..." : "Продолжить к подтверждению личности"}
+          {submitting
+            ? "Создаём..."
+            : alreadyVerified
+              ? "Продолжить к записи голоса"
+              : "Продолжить к подтверждению личности"}
         </Button>
       </form>
     </main>
