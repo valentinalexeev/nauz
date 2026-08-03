@@ -169,20 +169,33 @@ export const diditKycProvider: KycProvider = {
     };
 
     const canonical = canonicalJson(payload);
-    const expected = createHmac("sha256", webhookSecret())
-      .update(`${timestamp}:${canonical}`)
-      .digest("hex");
+    const hmacHex = (message: string) =>
+      createHmac("sha256", webhookSecret()).update(message).digest("hex");
+    const expected = hmacHex(`${timestamp}:${canonical}`);
 
     if (!timingSafeEqualHex(signature, expected)) {
-      // Диагностика без утечки PII/секретов: только форма payload, длина
-      // секрета и сами хеши (это не чувствительные данные) — чтобы отличить
-      // "секрет в Vercel не совпадает с Didit" от "разошёлся алгоритм канонизации".
+      // Диагностика без утечки PII/секретов: перебираем несколько гипотез
+      // об алгоритме подписи разом (сырое тело как есть, с префиксом
+      // времени и без, канонизация без префикса) — так не нужно гадать
+      // и ждать ещё один вебхук на каждую гипотезу по отдельности.
+      const candidates = {
+        timestampColonCanonical: expected,
+        canonicalOnly: hmacHex(canonical),
+        rawBodyOnly: hmacHex(rawBody),
+        timestampColonRawBody: hmacHex(`${timestamp}:${rawBody}`),
+        simple:
+          payload.session_id && payload.status && payload.webhook_type
+            ? hmacHex(
+                `${timestamp}:${payload.session_id}:${payload.status}:${payload.webhook_type}`,
+              )
+            : undefined,
+      };
       console.error("kyc webhook: signature mismatch diagnostics", {
         payloadShape: redactForDebug(payload),
         canonicalLength: canonical.length,
         secretLength: webhookSecret().length,
         signatureReceived: signature,
-        signatureExpected: expected,
+        candidates,
         timestamp,
       });
       throw new Error("invalid webhook signature");
