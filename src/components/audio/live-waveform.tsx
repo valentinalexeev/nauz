@@ -444,8 +444,14 @@ export const LiveWaveform = ({
             historyRef.current.push(Math.min(1, Math.max(0.05, average)))
             lastActiveDataRef.current = [...historyRef.current]
 
-            // Maintain history size
-            if (historyRef.current.length > historySize) {
+            // Ограничиваем историю тем, что реально умещается в текущую
+            // ширину контейнера (а не только фиксированным historySize) —
+            // иначе на широких контейнерах отрисовка быстро набирает
+            // historySize сэмплов и дальше визуально "замирает" в пределах
+            // этого узкого диапазона, не доходя до края.
+            const visibleBarCount = Math.floor(rect.width / (barWidth + barGap))
+            const cap = Math.max(historySize, visibleBarCount)
+            while (historyRef.current.length > cap) {
               historyRef.current.shift()
             }
           }
