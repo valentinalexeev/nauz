@@ -16,10 +16,14 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // Несколько образцов (по одному на каждый прочитанный текст) — см.
+  // voice-recorder.tsx, все под одним ключом "audio" в FormData.
   const formData = await request.formData();
-  const audio = formData.get("audio");
+  const audio = formData
+    .getAll("audio")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
-  if (!(audio instanceof Blob) || audio.size === 0) {
+  if (!audio.length) {
     return NextResponse.json({ error: "audio sample required" }, { status: 400 });
   }
 

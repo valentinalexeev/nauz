@@ -43,7 +43,18 @@ export async function DELETE(
   }
 
   if (voice.sample_audio_path) {
-    await admin.storage.from("voice-samples").remove([voice.sample_audio_path]);
+    // sample_audio_path — префикс папки с несколькими образцами (см.
+    // clone-sample.ts), а не путь к одному файлу: перечисляем и удаляем всё
+    // содержимое. Для голосов, созданных до перехода на несколько образцов,
+    // path указывал на один файл напрямую — list() по нему вернёт пусто, и
+    // тот файл просто останется висеть (не страшно, приватный бакет).
+    const { data: files } = await admin.storage
+      .from("voice-samples")
+      .list(voice.sample_audio_path);
+    const paths = (files ?? []).map((f) => `${voice.sample_audio_path}/${f.name}`);
+    if (paths.length) {
+      await admin.storage.from("voice-samples").remove(paths);
+    }
   }
 
   const { count: generationsCount } = await admin

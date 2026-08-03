@@ -25,6 +25,8 @@ export interface CloneVoiceParams {
   description?: string;
   /** Аудио-файлы образца голоса (webm/mp3/wav) */
   files: Blob[];
+  /** Чистит шум/фон в образце перед клонированием — включено по умолчанию. */
+  removeBackgroundNoise?: boolean;
 }
 
 export interface CloneVoiceResult {
@@ -41,10 +43,12 @@ export async function cloneVoice({
   name,
   description,
   files,
+  removeBackgroundNoise = true,
 }: CloneVoiceParams): Promise<CloneVoiceResult> {
   const form = new FormData();
   form.set("name", name);
   if (description) form.set("description", description);
+  form.set("remove_background_noise", String(removeBackgroundNoise));
   files.forEach((file, i) =>
     form.append("files", file, `sample-${i}.${extensionForAudioMimeType(file.type)}`),
   );

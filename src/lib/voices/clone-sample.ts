@@ -5,7 +5,8 @@ import { cloneVoice, extensionForAudioMimeType } from "@/lib/elevenlabs/client";
 export interface CloneVoiceSampleParams {
   userId: string;
   voiceId: string;
-  audio: Blob;
+  /** Один или несколько образцов (несколько — по одному на разный текст). */
+  audio: Blob[];
 }
 
 export interface CloneVoiceSampleResult {
@@ -14,7 +15,7 @@ export interface CloneVoiceSampleResult {
 }
 
 /**
- * Принимает образец голоса и клонирует его в ElevenLabs. Общая логика для
+ * Принимает образцы голоса и клонирует их в ElevenLabs. Общая логика для
  * /api/voices/[id]/clone (веб, сессия из cookie) и Telegram-бота (userId
  * известен из telegram_links, без живой Supabase-сессии).
  *
@@ -50,14 +51,22 @@ export async function cloneVoiceSample({
   await admin.from("voices").update({ status: "cloning" }).eq("id", voice.id);
 
   try {
-    const samplePath = `${userId}/${voice.id}.${extensionForAudioMimeType(audio.type)}`;
-    const { error: uploadError } = await admin.storage
-      .from("voice-samples")
-      .upload(samplePath, audio, {
-        contentType: audio.type || "audio/webm",
-        upsert: true,
-      });
-
+    // Папка вместо одного файла — образцов теперь может быть несколько
+    // (см. voice-recorder.tsx). При удалении голоса (route.ts) все файлы
+    // под этим префиксом вычищаются через storage.list().
+    const samplePrefix = `${userId}/${voice.id}`;
+    const uploadResults = await Promise.all(
+      audio.map((blob, i) =>
+        admin.storage
+          .from("voice-samples")
+          .upload(
+            `${samplePrefix}/sample-${i}.${extensionForAudioMimeType(blob.type)}`,
+            blob,
+            { contentType: blob.type || "audio/webm", upsert: true },
+          ),
+      ),
+    );
+    const uploadError = uploadResults.find((r) => r.error)?.error;
     if (uploadError) throw uploadError;
 
     // Имя в ElevenLabs должно позволять сопоставить голос с пользователем
@@ -65,7 +74,7 @@ export async function cloneVoiceSample({
     // "Папа", без понимания, чей это профиль.
     const { voiceId: elevenlabsVoiceId } = await cloneVoice({
       name: `Науз: ${owner?.email ?? userId} — ${voice.label}`,
-      files: [audio],
+      files: audio,
     });
 
     await admin
@@ -73,7 +82,7 @@ export async function cloneVoiceSample({
       .update({
         status: "ready",
         elevenlabs_voice_id: elevenlabsVoiceId,
-        sample_audio_path: samplePath,
+        sample_audio_path: samplePrefix,
       })
       .eq("id", voice.id);
 
