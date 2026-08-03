@@ -35,7 +35,7 @@ export default async function DashboardPage() {
   for (const g of generations ?? []) {
     if (!voiceIdByStoryId.has(g.story_id)) voiceIdByStoryId.set(g.story_id, g.voice_id);
   }
-  const voiceLabelById = new Map((voices as Voice[] | null ?? []).map((v) => [v.id, v.label]));
+  const voiceById = new Map((voices as Voice[] | null ?? []).map((v) => [v.id, v]));
 
   return (
     <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-16 flex flex-col gap-12">
@@ -75,10 +75,12 @@ export default async function DashboardPage() {
                   <span className="text-xs text-neutral-500">
                     {statusLabel(voice.status)}
                   </span>
-                  <DeleteButton
-                    endpoint={`/api/voices/${voice.id}`}
-                    confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
-                  />
+                  {voice.status !== "revoked" && (
+                    <DeleteButton
+                      endpoint={`/api/voices/${voice.id}`}
+                      confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
+                    />
+                  )}
                 </div>
               </li>
             ))}
@@ -100,7 +102,9 @@ export default async function DashboardPage() {
           <p className="text-sm text-neutral-500">Записей пока нет.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {(stories as Story[]).map((story) => (
+            {(stories as Story[]).map((story) => {
+              const voice = voiceById.get(voiceIdByStoryId.get(story.id) ?? "");
+              return (
               <li
                 key={story.id}
                 className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between"
@@ -110,7 +114,8 @@ export default async function DashboardPage() {
                     {story.title}
                   </Link>
                   <span className="text-xs text-neutral-500">
-                    голос: {voiceLabelById.get(voiceIdByStoryId.get(story.id) ?? "") ?? "неизвестен"}
+                    голос: {voice?.label ?? "неизвестен"}
+                    {voice?.status === "revoked" && " (удалён)"}
                   </span>
                 </div>
                 <DeleteButton
@@ -118,7 +123,8 @@ export default async function DashboardPage() {
                   confirmMessage={`Удалить запись «${story.title}»? Это действие необратимо.`}
                 />
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -139,6 +145,6 @@ function statusLabel(status: Voice["status"]) {
     case "failed":
       return "ошибка";
     case "revoked":
-      return "доступ отозван";
+      return "голос удалён";
   }
 }

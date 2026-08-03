@@ -46,19 +46,28 @@ export async function DELETE(
     await admin.storage.from("voice-samples").remove([voice.sample_audio_path]);
   }
 
-  const { data: generations } = await admin
+  const { count: generationsCount } = await admin
     .from("audio_generations")
-    .select("audio_url")
+    .select("id", { count: "exact", head: true })
     .eq("voice_id", voice.id);
-  const paths = (generations ?? [])
-    .map((g) => g.audio_url)
-    .filter((p): p is string => Boolean(p));
-  if (paths.length) {
-    await admin.storage.from("audio-generations").remove(paths);
+
+  if (generationsCount && generationsCount > 0) {
+    // У голоса есть готовые записи — не удаляем строку целиком (иначе список
+    // сказок потеряет привязку "каким голосом записано"), а мягко помечаем
+    // revoked: сам клон и сырой образец уже вычищены выше, аудиозаписи и их
+    // файлы остаются нетронутыми, имя голоса продолжает отображаться.
+    const { error } = await admin
+      .from("voices")
+      .update({ status: "revoked", elevenlabs_voice_id: null, sample_audio_path: null })
+      .eq("id", voice.id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
   }
 
-  // Удаление voices каскадом удалит связанные kyc_verifications и
-  // audio_generations (FK on delete cascade), stories не затрагиваются.
+  // Записей нет — ничего не ссылается на этот голос, можно удалить полностью.
+  // Каскадом удалятся связанные kyc_verifications (FK on delete cascade).
   const { error } = await admin.from("voices").delete().eq("id", voice.id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

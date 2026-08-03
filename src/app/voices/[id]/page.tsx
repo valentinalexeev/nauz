@@ -134,7 +134,7 @@ function VoiceStatusPanel({
     case "revoked":
       return (
         <p className="text-sm text-neutral-600">
-          Доступ к этому голосу отозван.
+          Этот голос удалён. Записи, сделанные им ранее, остаются доступны.
         </p>
       );
   }
