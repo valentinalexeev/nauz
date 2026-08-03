@@ -342,6 +342,12 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
                 mode="scrolling"
                 height={48}
                 barColor="#171717"
+                // Поток записи идёт без autoGainControl (нужно для качества
+                // клонирования — см. комментарий в startRecording), поэтому
+                // на обычном расстоянии от микрофона сигнал заметно тише,
+                // чем при включённом AGC. sensitivity компенсирует это
+                // визуально, не затрагивая сам записываемый звук.
+                sensitivity={3}
                 onError={() => setWaveformError(true)}
               />
             )}
