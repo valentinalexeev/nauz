@@ -296,6 +296,15 @@ async function handleVoiceLabelStep(
 
     await updateLink(chatId, { state: "idle", pending_voice_id: voice.id });
 
+    if (redirectUrl === null) {
+      // Личность уже подтверждена ранее — новый KYC не нужен.
+      await sendMessage({
+        chatId,
+        text: `Голос «${label}» создан, личность уже подтверждена ранее. Пришлите сюда голосовое сообщение с образцом голоса (~60 секунд).`,
+      });
+      return;
+    }
+
     const absoluteUrl = redirectUrl.startsWith("http")
       ? redirectUrl
       : `${siteUrl()}${redirectUrl}`;

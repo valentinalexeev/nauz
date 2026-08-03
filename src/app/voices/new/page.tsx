@@ -62,8 +62,9 @@ export default function NewVoicePage() {
       return;
     }
 
-    const { redirectUrl } = (await res.json()) as { redirectUrl: string };
-    router.push(redirectUrl);
+    const { redirectUrl } = (await res.json()) as { redirectUrl: string | null };
+    // null — личность уже подтверждена ранее, KYC для этого голоса не нужен
+    router.push(redirectUrl ?? `/voices/${voice.id}`);
   }
 
   return (

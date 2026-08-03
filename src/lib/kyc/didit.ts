@@ -17,15 +17,6 @@ function workflowId(): string {
   return id;
 }
 
-/**
- * Воркфлоу типа biometric_authentication (liveness + face-match против
- * сохранённого портрета, без документа) — опционален: пока не настроен,
- * все верификации идут по полному KYC (см. startVerification).
- */
-function biometricWorkflowId(): string | null {
-  return process.env.DIDIT_BIOMETRIC_WORKFLOW_ID ?? null;
-}
-
 function webhookSecret(): string {
   const secret = process.env.DIDIT_WEBHOOK_SECRET;
   if (!secret) throw new Error("DIDIT_WEBHOOK_SECRET не задан");
@@ -110,12 +101,7 @@ interface DiditCreateSessionResponse {
 export const diditKycProvider: KycProvider = {
   name: "didit",
 
-  async startVerification({ voiceId, email, reverifyPortraitBase64 }) {
-    // Если есть портрет из прошлой одобренной верификации И настроен
-    // biometric_authentication воркфлоу — лёгкая переверификация (liveness +
-    // face-match) вместо полного KYC. Иначе — обычный полный KYC, как раньше.
-    const biometricWorkflow = reverifyPortraitBase64 ? biometricWorkflowId() : null;
-
+  async startVerification({ voiceId, email }) {
     const res = await fetch(`${DIDIT_API_BASE}/v3/session/`, {
       method: "POST",
       headers: {
@@ -123,7 +109,7 @@ export const diditKycProvider: KycProvider = {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        workflow_id: biometricWorkflow ?? workflowId(),
+        workflow_id: workflowId(),
         vendor_data: voiceId,
         callback: `${siteUrl()}/voices/${voiceId}`,
         // Интерфейс Науз только русский — предвыбираем язык хостед-сессии
@@ -132,7 +118,6 @@ export const diditKycProvider: KycProvider = {
         // email передаём как metadata для сверки на стороне Didit, если
         // потребуется — сама верификация identity документов не зависит от него.
         metadata: { email },
-        ...(biometricWorkflow ? { portrait_image: reverifyPortraitBase64 } : {}),
       }),
     });
 
@@ -188,31 +173,5 @@ export const diditKycProvider: KycProvider = {
       externalReferenceId: payload.session_id,
       status: mapStatus(payload.status),
     };
-  },
-
-  /**
-   * Портрет, извлечённый Didit из документа/селфи при полном KYC — берём
-   * его из decision-эндпоинта (id_verifications[0].portrait_image, URL,
-   * живёт ~60 минут) и сразу скачиваем, чтобы сохранить у себя для будущей
-   * лёгкой переверификации (см. startVerification/reverifyPortraitBase64).
-   */
-  async fetchReferencePortrait(externalReferenceId) {
-    const res = await fetch(
-      `${DIDIT_API_BASE}/v3/session/${externalReferenceId}/decision/`,
-      { headers: { "x-api-key": apiKey() } },
-    );
-    if (!res.ok) return null;
-
-    const decision = (await res.json()) as {
-      id_verifications?: Array<{ portrait_image?: string | null }>;
-    };
-    const portraitUrl = decision.id_verifications?.[0]?.portrait_image;
-    if (!portraitUrl) return null;
-
-    const imageRes = await fetch(portraitUrl);
-    if (!imageRes.ok) return null;
-
-    const buffer = Buffer.from(await imageRes.arrayBuffer());
-    return buffer.toString("base64");
   },
 };

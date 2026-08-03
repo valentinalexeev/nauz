@@ -17,15 +17,6 @@ export interface StartVerificationParams {
   voiceId: string;
   /** email пользователя, для которого запускается проверка личности */
   email: string;
-  /**
-   * Портрет (base64) из ПРОШЛОЙ одобренной верификации того же пользователя.
-   * Если провайдер это поддерживает, вместо полного KYC (документ + селфи)
-   * достаточно лёгкой биометрической переверификации (liveness + face-match
-   * против этого портрета) — так KYC проходится по факту один раз на
-   * человека, а не на каждый голос. Провайдеры, не умеющие в reverify,
-   * просто игнорируют это поле и всегда делают полный KYC.
-   */
-  reverifyPortraitBase64?: string;
 }
 
 export interface StartVerificationResult {
@@ -56,13 +47,6 @@ export interface KycProvider {
    * ответить 200 и ничего не делать, а не отклонять как invalid payload.
    */
   parseWebhook(rawBody: string, headers: Headers): KycWebhookEvent | null;
-  /**
-   * Достаёт портрет (base64) из уже завершённой верификации — чтобы
-   * сохранить его для последующей лёгкой переверификации (см.
-   * StartVerificationParams.reverifyPortraitBase64). Провайдеры без
-   * поддержки reverify этот метод не реализуют.
-   */
-  fetchReferencePortrait?(externalReferenceId: string): Promise<string | null>;
 }
 
 /**
