@@ -65,6 +65,24 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
+ * Форма значения для диагностики без утечки PII: числа/bool/null оставляем
+ * как есть (не персональные данные и важны для отладки канонизации чисел),
+ * строки заменяем на их длину — так видно структуру payload, но не текст.
+ */
+function redactForDebug(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactForDebug);
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      out[key] = redactForDebug((value as Record<string, unknown>)[key]);
+    }
+    return out;
+  }
+  if (typeof value === "string") return `string(len=${value.length})`;
+  return value;
+}
+
+/**
  * Didit присылает статусы в своей номенклатуре ("Approved"/"Declined"/...),
  * а не в нашей ("approved"/"rejected"/"pending") — остальные промежуточные
  * статусы (Not Started/In Progress/In Review/Abandoned) трактуем как pending,
@@ -160,7 +178,8 @@ export const diditKycProvider: KycProvider = {
       // секрета и сами хеши (это не чувствительные данные) — чтобы отличить
       // "секрет в Vercel не совпадает с Didit" от "разошёлся алгоритм канонизации".
       console.error("kyc webhook: signature mismatch diagnostics", {
-        payloadKeys: Object.keys(payload).sort(),
+        payloadShape: redactForDebug(payload),
+        canonicalLength: canonical.length,
         secretLength: webhookSecret().length,
         signatureReceived: signature,
         signatureExpected: expected,
