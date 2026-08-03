@@ -41,8 +41,12 @@ export interface KycProvider {
    * Разбирает и валидирует входящий вебхук от провайдера. Принимает все
    * заголовки запроса, а не один конкретный — у разных провайдеров подпись
    * лежит в разных заголовках (см. src/lib/kyc/didit.ts: X-Signature-V2).
+   *
+   * Возвращает null для событий, которые не несут смену статуса (например,
+   * Didit шлёт ещё и "data.updated") — это не ошибка, роут должен просто
+   * ответить 200 и ничего не делать, а не отклонять как invalid payload.
    */
-  parseWebhook(rawBody: string, headers: Headers): KycWebhookEvent;
+  parseWebhook(rawBody: string, headers: Headers): KycWebhookEvent | null;
 }
 
 /**

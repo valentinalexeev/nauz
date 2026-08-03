@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { KycProvider, KycWebhookEvent } from "@/lib/kyc/provider";
 
 const DIDIT_API_BASE = "https://verification.didit.me";
+const WEBHOOK_MAX_AGE_SECONDS = 300;
 
 function apiKey(): string {
   const key = process.env.DIDIT_API_KEY;
@@ -37,6 +38,31 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 }
 
 /**
+ * Рекурсивно пересобирает объект с ключами в отсортированном порядке —
+ * ровно как Python `json.dumps(..., sort_keys=True)`, которым Didit считает
+ * подпись на своей стороне. Порядок элементов в массивах не трогаем.
+ * Числа в JS не различают int/float на уровне типа (в отличие от Python),
+ * поэтому JSON.stringify(5.0) и так даёт "5" — этап process_value из
+ * официального примера Didit для нас не нужен, JS уже ведёт себя так.
+ */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === "object") {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = sortKeysDeep((value as Record<string, unknown>)[key]);
+    }
+    return sorted;
+  }
+  return value;
+}
+
+/** Компактная сериализация — как Python separators=(",", ":"), без экранирования не-ASCII. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value));
+}
+
+/**
  * Didit присылает статусы в своей номенклатуре ("Approved"/"Declined"/...),
  * а не в нашей ("approved"/"rejected"/"pending") — остальные промежуточные
  * статусы (Not Started/In Progress/In Review/Abandoned) трактуем как pending,
@@ -62,11 +88,13 @@ interface DiditCreateSessionResponse {
  * Реальный KYC-провайдер через Didit (https://docs.didit.me) — hosted-сессия
  * верификации личности, результат приходит вебхуком на /api/kyc/webhook.
  *
- * ⚠️ Официальные страницы docs.didit.me/reference/* на момент написания
- * отдавали 404 — заголовок подписи (X-Signature-V2) и формат HMAC
- * восстановлены из смежной документации/блога Didit и не проверены на
- * реальном трафике. Если вебхук не проходит проверку подписи — первым делом
- * сверить точное имя заголовка и алгоритм в актуальном дашборде Didit.
+ * Формат подписи (V2) подтверждён по официальному скиллу
+ * didit-protocol/skills (skills/didit-verification-management/SKILL.md,
+ * раздел "Webhook Events & Signatures"): HMAC-SHA256 не от сырого тела,
+ * а от строки `${timestamp}:${canonical_json}`, где canonical_json — JSON
+ * с отсортированными ключами и компактными разделителями. Заголовки:
+ * X-Signature-V2 (сама подпись) + X-Timestamp (unix-секунды, должен быть
+ * не старше 5 минут — защита от replay).
  */
 export const diditKycProvider: KycProvider = {
   name: "didit",
@@ -98,16 +126,40 @@ export const diditKycProvider: KycProvider = {
 
   parseWebhook(rawBody, headers) {
     const signature = headers.get("x-signature-v2");
-    if (!signature) {
-      throw new Error("missing X-Signature-V2 header");
+    const timestamp = headers.get("x-timestamp");
+    if (!signature || !timestamp) {
+      throw new Error("missing X-Signature-V2 or X-Timestamp header");
     }
 
-    const expected = createHmac("sha256", webhookSecret()).update(rawBody).digest("hex");
+    const timestampSeconds = Number(timestamp);
+    if (
+      !Number.isFinite(timestampSeconds) ||
+      Math.abs(Date.now() / 1000 - timestampSeconds) > WEBHOOK_MAX_AGE_SECONDS
+    ) {
+      throw new Error("webhook timestamp missing, invalid or too old");
+    }
+
+    const payload = JSON.parse(rawBody) as {
+      session_id?: string;
+      status?: string;
+      webhook_type?: string;
+    };
+
+    const canonical = canonicalJson(payload);
+    const expected = createHmac("sha256", webhookSecret())
+      .update(`${timestamp}:${canonical}`)
+      .digest("hex");
+
     if (!timingSafeEqualHex(signature, expected)) {
       throw new Error("invalid webhook signature");
     }
 
-    const payload = JSON.parse(rawBody) as { session_id?: string; status?: string };
+    // Didit шлёт ещё и "data.updated" (ручная правка данных ревьюером) —
+    // это не смена статуса верификации, нам нечего с этим делать.
+    if (payload.webhook_type && payload.webhook_type !== "status.updated") {
+      return null;
+    }
+
     if (!payload.session_id || !payload.status) {
       throw new Error("unexpected webhook payload shape");
     }

@@ -14,8 +14,16 @@ export async function POST(request: Request) {
   let event;
   try {
     event = provider.parseWebhook(rawBody, request.headers);
-  } catch {
+  } catch (err) {
+    // Раньше ошибка проглатывалась молча — при разборе проблем с реальным
+    // провайдером (Didit) не было видно даже причины 400 в логах Vercel.
+    console.error("kyc webhook: parseWebhook failed", err);
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  if (event === null) {
+    // Событие без смены статуса (например, Didit "data.updated") — не ошибка.
+    return NextResponse.json({ ok: true });
   }
 
   const admin = createSupabaseAdminClient();
