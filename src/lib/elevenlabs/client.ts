@@ -75,6 +75,23 @@ export interface GenerateSpeechParams {
   /** 0.7–1.2, по умолчанию 1.0 (обычная скорость). */
   speed?: number;
   modelId?: string;
+  /**
+   * Для склейки нескольких кусков длинного текста (см.
+   * src/lib/elevenlabs/chunk-text.ts) — соседний текст/request_id помогают
+   * ElevenLabs держать интонацию непрерывной на стыке кусков, а не
+   * начинать читать "с нуля" каждый следующий. previousText игнорируется,
+   * если передан previousRequestIds (см. доки ElevenLabs).
+   */
+  previousText?: string;
+  nextText?: string;
+  /** Максимум 3 по ограничению API — на практике передаём один. */
+  previousRequestIds?: string[];
+}
+
+export interface GenerateSpeechResult {
+  audio: ArrayBuffer;
+  /** Для previousRequestIds следующего куска при склейке длинных текстов. */
+  requestId: string | null;
 }
 
 /**
@@ -89,7 +106,10 @@ export async function generateSpeech({
   languageCode,
   speed = 1.0,
   modelId = "eleven_v3",
-}: GenerateSpeechParams): Promise<ArrayBuffer> {
+  previousText,
+  nextText,
+  previousRequestIds,
+}: GenerateSpeechParams): Promise<GenerateSpeechResult> {
   const res = await fetch(`${ELEVENLABS_API_BASE}/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
@@ -101,6 +121,12 @@ export async function generateSpeech({
       model_id: modelId,
       language_code: languageCode,
       voice_settings: { stability: 0.5, similarity_boost: 0.85, speed },
+      ...(previousRequestIds?.length
+        ? { previous_request_ids: previousRequestIds }
+        : previousText
+          ? { previous_text: previousText }
+          : {}),
+      ...(nextText ? { next_text: nextText } : {}),
     }),
   });
 
@@ -108,7 +134,7 @@ export async function generateSpeech({
     throw new Error(`ElevenLabs generateSpeech failed: ${res.status} ${await res.text()}`);
   }
 
-  return res.arrayBuffer();
+  return { audio: await res.arrayBuffer(), requestId: res.headers.get("request-id") };
 }
 
 /**
