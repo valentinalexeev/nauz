@@ -9,12 +9,11 @@ import { getKycProvider } from "@/lib/kyc/provider";
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const signature = request.headers.get("x-kyc-signature");
 
   const provider = getKycProvider();
   let event;
   try {
-    event = provider.parseWebhook(rawBody, signature);
+    event = provider.parseWebhook(rawBody, request.headers);
   } catch {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }

@@ -1,4 +1,5 @@
 import "server-only";
+import { diditKycProvider } from "@/lib/kyc/didit";
 
 /**
  * Абстракция над внешним KYC-сервисом (например, аналогичным
@@ -36,8 +37,12 @@ export interface KycProvider {
   startVerification(
     params: StartVerificationParams,
   ): Promise<StartVerificationResult>;
-  /** Разбирает и валидирует входящий вебхук от провайдера */
-  parseWebhook(rawBody: string, signature: string | null): KycWebhookEvent;
+  /**
+   * Разбирает и валидирует входящий вебхук от провайдера. Принимает все
+   * заголовки запроса, а не один конкретный — у разных провайдеров подпись
+   * лежит в разных заголовках (см. src/lib/kyc/didit.ts: X-Signature-V2).
+   */
+  parseWebhook(rawBody: string, headers: Headers): KycWebhookEvent;
 }
 
 /**
@@ -61,8 +66,8 @@ export const stubKycProvider: KycProvider = {
 export function getKycProvider(): KycProvider {
   const provider = process.env.KYC_PROVIDER;
   switch (provider) {
-    // TODO: добавить реального провайдера, например:
-    // case "beorg": return beorgKycProvider;
+    case "didit":
+      return diditKycProvider;
     default:
       return stubKycProvider;
   }
