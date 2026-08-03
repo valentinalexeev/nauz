@@ -57,6 +57,7 @@ interface TelegramLink {
   pending_email: string | null;
   state: "awaiting_email" | "awaiting_otp" | "awaiting_voice_label" | "idle";
   pending_voice_id: string | null;
+  pending_story_voice_id: string | null;
 }
 
 async function getOrCreateLink(chatId: number): Promise<TelegramLink> {
@@ -405,15 +406,28 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
       return;
     }
 
+    // callback_data у Telegram ограничен 64 байтами — два UUID (voiceId +
+    // templateId) в одной строке в это не укладываются (~83 байта, отсюда
+    // была ошибка BUTTON_DATA_INVALID). Поэтому voiceId кладём в БД, а в
+    // кнопке остаётся только templateId.
+    await updateLink(chatId, { pending_story_voice_id: voiceId });
     const keyboard: InlineKeyboard = templates.map((t) => [
-      { text: t.title, callback_data: `story:gen:${voiceId}:${t.id}` },
+      { text: t.title, callback_data: `story:gen:${t.id}` },
     ]);
     await sendMessage({ chatId, text: "Какую сказку озвучить?", replyMarkup: keyboard });
     return;
   }
 
   if (action === "gen") {
-    const [voiceId, templateId] = rest;
+    const [templateId] = rest;
+    const voiceId = link.pending_story_voice_id;
+    if (!voiceId) {
+      await sendMessage({
+        chatId,
+        text: "Не помню, какой голос выбирали — начните заново с /voices.",
+      });
+      return;
+    }
     await sendMessage({ chatId, text: "Генерируем аудио, это может занять минуту..." });
 
     try {
