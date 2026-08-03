@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute =
     request.nextUrl.pathname.startsWith("/dashboard") ||
     request.nextUrl.pathname.startsWith("/voices") ||
-    request.nextUrl.pathname.startsWith("/stories");
+    request.nextUrl.pathname.startsWith("/stories") ||
+    request.nextUrl.pathname.startsWith("/books");
 
   if (isProtectedRoute && !user) {
     const loginUrl = new URL("/login", request.url);

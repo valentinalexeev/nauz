@@ -44,6 +44,9 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold">Науз</h1>
           <p className="text-sm text-neutral-500">{user?.email}</p>
         </div>
+        <Link href="/books" className="text-sm font-medium text-neutral-900 underline">
+          Книги по главам
+        </Link>
       </header>
 
       <section className="flex flex-col gap-4">

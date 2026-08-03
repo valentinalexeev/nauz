@@ -75,3 +75,33 @@ export interface AudioGeneration {
   watermarkId: string | null;
   createdAt: string;
 }
+
+export interface Book {
+  id: string;
+  title: string;
+  language: string;
+  createdAt: string;
+}
+
+export interface BookChapter {
+  id: string;
+  bookId: string;
+  orderIndex: number;
+  title: string;
+  textPlain: string;
+  textMarked: string;
+  // Вопросы по ЭТОЙ главе — озвучиваются перед следующей. Null для
+  // последней главы книги.
+  recapQuestionsMarked: string | null;
+  createdAt: string;
+}
+
+export interface BookChapterGeneration {
+  id: string;
+  chapterId: string;
+  voiceId: string;
+  status: AudioGenerationStatus;
+  audioUrl: string | null;
+  watermarkId: string | null;
+  createdAt: string;
+}

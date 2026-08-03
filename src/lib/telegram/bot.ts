@@ -4,6 +4,7 @@ import { createSupabaseAuthClient } from "@/lib/supabase/auth";
 import { startKycForVoice } from "@/lib/voices/start-kyc";
 import { cloneVoiceSample } from "@/lib/voices/clone-sample";
 import { generateStoryAudio } from "@/lib/stories/generate-audio";
+import { generateChapterAudio } from "@/lib/books/generate-chapter-audio";
 import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
 import {
   sendMessage,
@@ -31,6 +32,7 @@ const ABOUT_NAUZ =
 const BOT_COMMANDS = [
   { command: "voices", description: "🎙 Мои голоса — создать сказку" },
   { command: "newvoice", description: "➕ Записать новый голосовой слепок" },
+  { command: "books", description: "📚 Книги по главам" },
 ];
 
 const CHAT_ACTION_REFRESH_MS = 4000; // Telegram гасит статус через ~5 сек
@@ -96,6 +98,8 @@ interface TelegramLink {
   pending_voice_id: string | null;
   pending_story_voice_id: string | null;
   pending_story_template_id: string | null;
+  pending_book_id: string | null;
+  pending_book_voice_id: string | null;
 }
 
 async function getOrCreateLink(chatId: number): Promise<TelegramLink> {
@@ -175,6 +179,11 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     return;
   }
 
+  if (link.user_id && text === "/books") {
+    await listBooks(chatId);
+    return;
+  }
+
   switch (link.state) {
     case "awaiting_email":
       await handleEmailStep(chatId, text);
@@ -193,7 +202,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       }
       await sendMessage({
         chatId,
-        text: "Команды: /voices — ваши голоса, /newvoice — добавить новый голос.",
+        text: "Команды: /voices — ваши голоса, /newvoice — добавить новый голос, /books — книги по главам.",
       });
       return;
   }
@@ -252,7 +261,7 @@ async function handleOtpStep(
   });
   await sendMessage({
     chatId,
-    text: "Готово, вы вошли в Науз! Команды: /voices — ваши голоса, /newvoice — добавить новый голос.",
+    text: "Готово, вы вошли в Науз! Команды: /voices — ваши голоса, /newvoice — добавить новый голос, /books — книги по главам.",
   });
 }
 
@@ -429,6 +438,24 @@ async function listVoices(chatId: number, userId: string): Promise<void> {
   await sendMessage({ chatId, text: lines.join("\n"), replyMarkup: keyboard.length ? keyboard : undefined });
 }
 
+async function listBooks(chatId: number): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const { data: books } = await admin
+    .from("books")
+    .select("id, title")
+    .order("title", { ascending: true });
+
+  if (!books?.length) {
+    await sendMessage({ chatId, text: "Пока нет ни одной книги." });
+    return;
+  }
+
+  const keyboard: InlineKeyboard = books.map((b) => [
+    { text: `📚 ${b.title}`, callback_data: `book:voices:${b.id}` },
+  ]);
+  await sendMessage({ chatId, text: "Какую книгу читать?", replyMarkup: keyboard });
+}
+
 async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> {
   if (!query.message || !query.data) return;
   const chatId = query.message.chat.id;
@@ -441,6 +468,10 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
   }
 
   const [scope, action, ...rest] = query.data.split(":");
+  if (scope === "book") {
+    await handleBookCallback(chatId, link, action, rest);
+    return;
+  }
   if (scope !== "story") return;
 
   if (action === "templates") {
@@ -533,6 +564,140 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
       await sendMessage({
         chatId,
         text: `Не удалось создать сказку: ${
+          err instanceof Error ? err.message : "неизвестная ошибка"
+        }`,
+      });
+    }
+  }
+}
+
+async function handleBookCallback(
+  chatId: number,
+  link: TelegramLink,
+  action: string,
+  rest: string[],
+): Promise<void> {
+  const admin = createSupabaseAdminClient();
+
+  if (action === "voices") {
+    const [bookId] = rest;
+    const { data: voices } = await admin
+      .from("voices")
+      .select("id, label")
+      .eq("owner_id", link.user_id!)
+      .eq("status", "ready");
+
+    if (!voices?.length) {
+      await sendMessage({
+        chatId,
+        text: "Сначала нужен готовый голос — отправьте /voices.",
+      });
+      return;
+    }
+
+    // Тот же приём, что и с pending_story_voice_id: bookId кладём в БД,
+    // в кнопке остаётся только voiceId (иначе два UUID не влезают в 64
+    // байта callback_data).
+    await updateLink(chatId, { pending_book_id: bookId });
+    const keyboard: InlineKeyboard = voices.map((v) => [
+      { text: `🎙 ${v.label}`, callback_data: `book:chapters:${v.id}` },
+    ]);
+    await sendMessage({ chatId, text: "Чьим голосом читать?", replyMarkup: keyboard });
+    return;
+  }
+
+  if (action === "chapters") {
+    const [voiceId] = rest;
+    const bookId = link.pending_book_id;
+    if (!bookId) {
+      await sendMessage({
+        chatId,
+        text: "Не помню, какую книгу выбрали — начните заново с /books.",
+      });
+      return;
+    }
+    await updateLink(chatId, { pending_book_voice_id: voiceId });
+
+    const { data: chapters } = await admin
+      .from("book_chapters")
+      .select("id, order_index, title")
+      .eq("book_id", bookId)
+      .order("order_index", { ascending: true });
+
+    if (!chapters?.length) {
+      await sendMessage({ chatId, text: "В этой книге пока нет глав." });
+      return;
+    }
+
+    const keyboard: InlineKeyboard = chapters.map((c) => [
+      { text: `Глава ${c.order_index}. ${c.title}`, callback_data: `book:chapter:${c.id}` },
+    ]);
+    await sendMessage({ chatId, text: "Какую главу озвучить?", replyMarkup: keyboard });
+    return;
+  }
+
+  if (action === "chapter") {
+    const [chapterId] = rest;
+    const voiceId = link.pending_book_voice_id;
+    if (!voiceId) {
+      await sendMessage({
+        chatId,
+        text: "Не помню, какой голос выбрали — начните заново с /books.",
+      });
+      return;
+    }
+
+    await sendMessage({ chatId, text: "Озвучиваем главу, это может занять минуту..." });
+
+    try {
+      // Уже озвученную этим голосом главу не генерируем заново.
+      const { data: existing } = await admin
+        .from("book_chapter_generations")
+        .select("audio_url")
+        .eq("chapter_id", chapterId)
+        .eq("voice_id", voiceId)
+        .eq("status", "ready")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      let audioUrl = existing?.audio_url ?? null;
+
+      if (!audioUrl) {
+        await withChatAction(chatId, "upload_voice", () =>
+          generateChapterAudio({ userId: link.user_id!, voiceId, chapterId }),
+        );
+        const { data: fresh } = await admin
+          .from("book_chapter_generations")
+          .select("audio_url")
+          .eq("chapter_id", chapterId)
+          .eq("voice_id", voiceId)
+          .eq("status", "ready")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        audioUrl = fresh?.audio_url ?? null;
+      }
+
+      if (audioUrl) {
+        const { data: fileData } = await admin.storage
+          .from("audio-generations")
+          .download(audioUrl);
+        if (fileData) {
+          await sendAudio({
+            chatId,
+            audio: await fileData.arrayBuffer(),
+            filename: "chapter.mp3",
+          });
+          return;
+        }
+      }
+
+      await sendMessage({ chatId, text: "Не удалось получить аудио главы." });
+    } catch (err) {
+      await sendMessage({
+        chatId,
+        text: `Не удалось озвучить главу: ${
           err instanceof Error ? err.message : "неизвестная ошибка"
         }`,
       });
