@@ -93,6 +93,16 @@ function extensionForMimeType(mimeType: string): string {
   return "webm";
 }
 
+// "1 образец" / "2 образца" / "5 образцов" — обычное "=== 1 ? ... : ..." даёт
+// неверное "5 образца" вместо "5 образцов".
+function pluralizeSamples(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "образец";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "образца";
+  return "образцов";
+}
+
 export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const router = useRouter();
   const [textIndex, setTextIndex] = useState(0);
@@ -310,7 +320,7 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
                 className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
               >
                 Хватит, отправить {takesCount}{" "}
-                {takesCount === 1 ? "образец" : "образца"}
+                {pluralizeSamples(takesCount)}
               </button>
             )}
           </div>
