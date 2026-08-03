@@ -20,7 +20,9 @@ function workflowId(): string {
 function webhookSecret(): string {
   const secret = process.env.DIDIT_WEBHOOK_SECRET;
   if (!secret) throw new Error("DIDIT_WEBHOOK_SECRET не задан");
-  return secret;
+  // .trim() — на случай лишнего перевода строки/пробела при вставке значения
+  // в переменные окружения Vercel: он молча меняет HMAC-ключ, не будучи видимым.
+  return secret.trim();
 }
 
 function siteUrl(): string {
