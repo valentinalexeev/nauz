@@ -154,6 +154,16 @@ export const diditKycProvider: KycProvider = {
       .digest("hex");
 
     if (!timingSafeEqualHex(signature, expected)) {
+      // Диагностика без утечки PII/секретов: только форма payload, длина
+      // секрета и сами хеши (это не чувствительные данные) — чтобы отличить
+      // "секрет в Vercel не совпадает с Didit" от "разошёлся алгоритм канонизации".
+      console.error("kyc webhook: signature mismatch diagnostics", {
+        payloadKeys: Object.keys(payload).sort(),
+        secretLength: webhookSecret().length,
+        signatureReceived: signature,
+        signatureExpected: expected,
+        timestamp,
+      });
       throw new Error("invalid webhook signature");
     }
 
