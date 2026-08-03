@@ -1,6 +1,23 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { StoryPlayer } from "@/app/stories/[id]/story-player";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const admin = createSupabaseAdminClient();
+  const { data: story } = await admin
+    .from("stories")
+    .select("title")
+    .eq("share_token", token)
+    .single();
+
+  return { title: story ? `Науз — ${story.title}` : "Науз" };
+}
 
 /**
  * Публичная страница плеера по невидимому токену — без авторизации,
