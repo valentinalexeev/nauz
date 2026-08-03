@@ -7,9 +7,11 @@ import { generateStoryAudio } from "@/lib/stories/generate-audio";
 import {
   sendMessage,
   sendAudio,
+  sendChatAction,
   answerCallbackQuery,
   getFile,
   downloadFile,
+  type ChatAction,
   type InlineKeyboard,
 } from "@/lib/telegram/client";
 import type { Voice, VoiceStatus } from "@/lib/types";
@@ -18,6 +20,30 @@ function siteUrl(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL;
   if (!url) throw new Error("NEXT_PUBLIC_SITE_URL не задан");
   return url;
+}
+
+const CHAT_ACTION_REFRESH_MS = 4000; // Telegram гасит статус через ~5 сек
+
+/**
+ * Держит статус "печатает…" (или другой ChatAction) в чате, пока выполняется
+ * долгая операция (клонирование голоса, генерация аудио) — иначе индикатор
+ * пропадает через несколько секунд и пользователь не понимает, идёт ли что-то.
+ */
+async function withChatAction<T>(
+  chatId: number,
+  action: ChatAction,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await sendChatAction({ chatId, action }).catch(() => {});
+  const interval = setInterval(() => {
+    sendChatAction({ chatId, action }).catch(() => {});
+  }, CHAT_ACTION_REFRESH_MS);
+
+  try {
+    return await fn();
+  } finally {
+    clearInterval(interval);
+  }
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -310,13 +336,14 @@ async function handleAudioMessage(
   await sendMessage({ chatId, text: "Получили образец, клонируем голос..." });
 
   try {
-    const filePath = await getFile(attachment.file_id);
-    const buffer = await downloadFile(filePath);
-    const audio = new Blob([buffer], {
-      type: attachment.mime_type ?? "audio/ogg",
+    await withChatAction(chatId, "typing", async () => {
+      const filePath = await getFile(attachment.file_id);
+      const buffer = await downloadFile(filePath);
+      const audio = new Blob([buffer], {
+        type: attachment.mime_type ?? "audio/ogg",
+      });
+      await cloneVoiceSample({ userId: link.user_id!, voiceId: voice.id, audio });
     });
-
-    await cloneVoiceSample({ userId: link.user_id, voiceId: voice.id, audio });
     await updateLink(chatId, { pending_voice_id: null });
     await sendMessage({
       chatId,
@@ -431,12 +458,14 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
     await sendMessage({ chatId, text: "Генерируем аудио, это может занять минуту..." });
 
     try {
-      const { storyId } = await generateStoryAudio({
-        userId: link.user_id,
-        voiceId,
-        templateId,
-        speed: 1.0,
-      });
+      const { storyId } = await withChatAction(chatId, "upload_voice", () =>
+        generateStoryAudio({
+          userId: link.user_id!,
+          voiceId,
+          templateId,
+          speed: 1.0,
+        }),
+      );
 
       const admin = createSupabaseAdminClient();
       const { data: generation } = await admin

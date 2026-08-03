@@ -76,6 +76,27 @@ export async function answerCallbackQuery(callbackQueryId: string): Promise<void
   await callApi("answerCallbackQuery", { callback_query_id: callbackQueryId });
 }
 
+export type ChatAction =
+  | "typing"
+  | "upload_voice"
+  | "record_voice"
+  | "upload_document";
+
+/**
+ * Показывает статус "печатает…"/"отправляет голосовое…" в чате. Telegram
+ * гаснет его сам через ~5 секунд — для долгих операций нужно вызывать
+ * повторно (см. withChatAction в src/lib/telegram/bot.ts).
+ */
+export async function sendChatAction({
+  chatId,
+  action,
+}: {
+  chatId: number;
+  action: ChatAction;
+}): Promise<void> {
+  await callApi("sendChatAction", { chat_id: chatId, action });
+}
+
 /** Возвращает file_path, используемый для скачивания через downloadFile(). */
 export async function getFile(fileId: string): Promise<string> {
   const result = await callApi<{ file_path: string }>("getFile", { file_id: fileId });
