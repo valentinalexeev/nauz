@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StoryPlayer } from "./story-player";
+import { ShareLink } from "./share-link";
 
 export default async function StoryPage({
   params,
@@ -53,6 +54,12 @@ export default async function StoryPage({
         </p>
       )}
       {audioUrl && <StoryPlayer storyId={story.id} audioUrl={audioUrl} />}
+
+      {audioUrl && (
+        <ShareLink
+          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/s/${story.share_token}`}
+        />
+      )}
 
       <p className="whitespace-pre-wrap text-neutral-700">{story.text}</p>
     </main>

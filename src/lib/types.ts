@@ -48,6 +48,7 @@ export interface Story {
   title: string;
   text: string;
   templateId: string | null; // шаблон-источник для fairy_tale, null для letter
+  shareToken: string; // публичная ссылка на плеер без авторизации, см. /s/[token]
   createdAt: string;
 }
 
