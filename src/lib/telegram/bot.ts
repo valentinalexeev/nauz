@@ -365,7 +365,7 @@ async function handleAudioMessage(
       const audio = new Blob([buffer], {
         type: attachment.mime_type ?? "audio/ogg",
       });
-      await cloneVoiceSample({ userId: link.user_id!, voiceId: voice.id, audio: [audio] });
+      await cloneVoiceSample({ userId: link.user_id!, voiceId: voice.id, audio });
     });
     await updateLink(chatId, { pending_voice_id: null });
     await sendMessage({

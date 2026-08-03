@@ -110,10 +110,9 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const mimeTypeRef = useRef<string>("audio/webm");
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Принятые дубли ждут отправки — каждый может быть в своём формате,
-  // если браузер вдруг сменит codec между записями (маловероятно, но
-  // extensionForMimeType всё равно считается по каждому файлу отдельно).
-  const takesRef = useRef<Blob[]>([]);
+  // Порядковый номер следующего дубля для загрузки (уже принятые дубли
+  // сразу уходят на сервер — см. uploadTake, локально Blob'ы не копятся).
+  const nextTakeIndexRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -202,10 +201,43 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
     setState("idle");
   }
 
-  function acceptTake() {
+  // Каждый дубль грузится отдельным запросом сразу после записи — тело
+  // запроса к Vercel-функциям ограничено ~4.5MB, несколько образцов разом
+  // в одном запросе легко превышают лимит (см. clone-sample.ts).
+  async function uploadTake(blob: Blob): Promise<boolean> {
+    const index = nextTakeIndexRef.current;
+    const ext = extensionForMimeType(blob.type || mimeTypeRef.current);
+    const formData = new FormData();
+    formData.append("audio", blob, `sample-${index}.${ext}`);
+    formData.append("index", String(index));
+
+    const res = await fetch(`/api/voices/${voiceId}/clone/sample`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(body.error ?? "Не удалось загрузить образец");
+      return false;
+    }
+
+    nextTakeIndexRef.current += 1;
+    setTakesCount(nextTakeIndexRef.current);
+    return true;
+  }
+
+  async function acceptTake() {
     if (!audioBlobRef.current) return;
-    takesRef.current.push(audioBlobRef.current);
-    setTakesCount(takesRef.current.length);
+    setState("uploading");
+    setError(null);
+
+    const ok = await uploadTake(audioBlobRef.current);
+    if (!ok) {
+      setState("recorded");
+      return;
+    }
+
     audioBlobRef.current = null;
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
@@ -214,33 +246,30 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   }
 
   async function acceptAndSubmit() {
-    if (audioBlobRef.current) {
-      takesRef.current.push(audioBlobRef.current);
-      setTakesCount(takesRef.current.length);
-      audioBlobRef.current = null;
-    }
-    await submit();
-  }
-
-  async function submit() {
-    if (!takesRef.current.length) return;
     setState("uploading");
     setError(null);
 
-    const formData = new FormData();
-    takesRef.current.forEach((blob, i) => {
-      const ext = extensionForMimeType(blob.type || mimeTypeRef.current);
-      formData.append("audio", blob, `sample-${i}.${ext}`);
-    });
+    if (audioBlobRef.current) {
+      const ok = await uploadTake(audioBlobRef.current);
+      if (!ok) {
+        setState("recorded");
+        return;
+      }
+      audioBlobRef.current = null;
+    }
 
-    const res = await fetch(`/api/voices/${voiceId}/clone`, {
-      method: "POST",
-      body: formData,
-    });
+    await finalize();
+  }
+
+  async function finalize() {
+    setState("uploading");
+    setError(null);
+
+    const res = await fetch(`/api/voices/${voiceId}/clone`, { method: "POST" });
 
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? "Не удалось отправить образцы на клонирование");
+      setError(body.error ?? "Не удалось завершить клонирование");
       setState(audioUrl ? "recorded" : "idle");
       return;
     }
@@ -277,7 +306,7 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
             </button>
             {takesCount > 0 && (
               <button
-                onClick={submit}
+                onClick={finalize}
                 className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
               >
                 Хватит, отправить {takesCount}{" "}
@@ -323,6 +352,10 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
             </button>
           </div>
         </div>
+      )}
+
+      {state === "uploading" && !audioUrl && (
+        <p className="text-sm text-neutral-500">Отправляем...</p>
       )}
 
       {(state === "recorded" || state === "uploading") && audioUrl && (
