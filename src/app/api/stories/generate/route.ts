@@ -6,7 +6,6 @@ import { embedWatermark } from "@/lib/watermark";
 import type { StoryKind } from "@/lib/types";
 
 const ALLOWED_SPEEDS = [0.8, 0.9, 1.0, 1.1, 1.2];
-const LETTER_LANGUAGE_CODE = "ru"; // единственный язык интерфейса (см. <html lang="ru">)
 
 type GenerateRequestBody =
   | { voiceId: string; kind: "letter"; title: string; text: string; speed?: number }
@@ -23,6 +22,16 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as GenerateRequestBody;
+
+  // Письма временно отключены: свободный текст (без модерации/лимитов)
+  // иначе уходит в ElevenLabs буквально из тела запроса клиента.
+  if (body.kind !== "fairy_tale") {
+    return NextResponse.json(
+      { error: "letters are temporarily disabled" },
+      { status: 400 },
+    );
+  }
+
   const speed = body.speed ?? 1.0;
 
   if (!ALLOWED_SPEEDS.includes(speed)) {
@@ -42,38 +51,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "voice not ready" }, { status: 400 });
   }
 
-  let kind: StoryKind;
-  let title: string;
-  let displayText: string;
-  let ttsText: string;
-  let languageCode: string;
-  let templateId: string | null;
+  // body.kind гарантированно "fairy_tale" — letter отклонён проверкой выше.
+  const { data: template } = await supabase
+    .from("story_templates")
+    .select("*")
+    .eq("id", body.templateId)
+    .single();
 
-  if (body.kind === "fairy_tale") {
-    const { data: template } = await supabase
-      .from("story_templates")
-      .select("*")
-      .eq("id", body.templateId)
-      .single();
-
-    if (!template) {
-      return NextResponse.json({ error: "template not found" }, { status: 404 });
-    }
-
-    kind = "fairy_tale";
-    title = template.title;
-    displayText = template.text_plain;
-    ttsText = template.text_marked;
-    languageCode = template.language;
-    templateId = template.id;
-  } else {
-    kind = "letter";
-    title = body.title;
-    displayText = body.text;
-    ttsText = body.text;
-    languageCode = LETTER_LANGUAGE_CODE;
-    templateId = null;
+  if (!template) {
+    return NextResponse.json({ error: "template not found" }, { status: 404 });
   }
+
+  const kind: StoryKind = "fairy_tale";
+  const title = template.title;
+  const displayText = template.text_plain;
+  const ttsText = template.text_marked;
+  const languageCode = template.language;
+  const templateId = template.id;
 
   const { data: story, error: storyError } = await supabase
     .from("stories")

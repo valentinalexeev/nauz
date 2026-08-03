@@ -111,13 +111,9 @@ export default function NewStoryPage() {
               />
               Сказка
             </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={kind === "letter"}
-                onChange={() => setKind("letter")}
-              />
-              Письмо
+            <label className="flex items-center gap-2 text-neutral-400 cursor-not-allowed">
+              <input type="radio" checked={false} disabled />
+              Письмо <span className="text-xs">(скоро)</span>
             </label>
           </div>
 
