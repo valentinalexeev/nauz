@@ -4,6 +4,7 @@ import { createSupabaseAuthClient } from "@/lib/supabase/auth";
 import { startKycForVoice } from "@/lib/voices/start-kyc";
 import { cloneVoiceSample } from "@/lib/voices/clone-sample";
 import { generateStoryAudio } from "@/lib/stories/generate-audio";
+import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
 import {
   sendMessage,
   sendAudio,
@@ -94,6 +95,7 @@ interface TelegramLink {
   state: "awaiting_email" | "awaiting_otp" | "awaiting_voice_label" | "idle";
   pending_voice_id: string | null;
   pending_story_voice_id: string | null;
+  pending_story_template_id: string | null;
 }
 
 async function getOrCreateLink(chatId: number): Promise<TelegramLink> {
@@ -451,19 +453,33 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
     // кнопке остаётся только templateId.
     await updateLink(chatId, { pending_story_voice_id: voiceId });
     const keyboard: InlineKeyboard = templates.map((t) => [
-      { text: t.title, callback_data: `story:gen:${t.id}` },
+      { text: t.title, callback_data: `story:speed:${t.id}` },
     ]);
     await sendMessage({ chatId, text: "Какую сказку озвучить?", replyMarkup: keyboard });
     return;
   }
 
-  if (action === "gen") {
+  if (action === "speed") {
     const [templateId] = rest;
+    // Та же причина, что и с pending_story_voice_id: templateId не влезает
+    // в одну кнопку вместе с индексом скорости, кладём его в БД.
+    await updateLink(chatId, { pending_story_template_id: templateId });
+    const keyboard: InlineKeyboard = SPEED_OPTIONS.map((opt, i) => [
+      { text: opt.label, callback_data: `story:gen:${i}` },
+    ]);
+    await sendMessage({ chatId, text: "Какая скорость речи?", replyMarkup: keyboard });
+    return;
+  }
+
+  if (action === "gen") {
+    const [speedIndexRaw] = rest;
+    const speedOption = SPEED_OPTIONS[Number(speedIndexRaw)];
     const voiceId = link.pending_story_voice_id;
-    if (!voiceId) {
+    const templateId = link.pending_story_template_id;
+    if (!voiceId || !templateId || !speedOption) {
       await sendMessage({
         chatId,
-        text: "Не помню, какой голос выбирали — начните заново с /voices.",
+        text: "Не помню, что выбирали — начните заново с /voices.",
       });
       return;
     }
@@ -475,7 +491,7 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
           userId: link.user_id!,
           voiceId,
           templateId,
-          speed: 1.0,
+          speed: speedOption.value,
         }),
       );
 

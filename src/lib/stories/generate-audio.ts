@@ -2,8 +2,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { generateSpeech } from "@/lib/elevenlabs/client";
 import { embedWatermark } from "@/lib/watermark";
-
-const ALLOWED_SPEEDS = [0.8, 0.9, 1.0, 1.1, 1.2];
+import { ALLOWED_SPEEDS } from "@/lib/stories/speed-options";
 
 export interface GenerateStoryAudioParams {
   userId: string;

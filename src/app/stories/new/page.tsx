@@ -4,14 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Voice, StoryKind, StoryTemplate } from "@/lib/types";
-
-const SPEED_OPTIONS = [
-  { value: 0.8, label: "0.8× — медленнее" },
-  { value: 0.9, label: "0.9× — чуть медленнее" },
-  { value: 1.0, label: "1.0× — обычная" },
-  { value: 1.1, label: "1.1× — чуть быстрее" },
-  { value: 1.2, label: "1.2× — быстрее" },
-];
+import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
 
 export default function NewStoryPage() {
   const router = useRouter();
