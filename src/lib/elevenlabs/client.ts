@@ -8,13 +8,15 @@ function apiKey() {
   return key;
 }
 
-// Расширение файла должно отражать реальный контейнер записи: Safari
-// пишет MediaRecorder-вывод в MP4/AAC, а не в WebM/WAV, и подпись файла
-// не по формату может сбить с толку детектор формата на стороне ElevenLabs.
-function extensionForAudioMimeType(mimeType: string): string {
+// Расширение файла должно отражать реальный контейнер записи: например,
+// Safari пишет MediaRecorder-вывод в MP4/AAC, а не в WebM/WAV, а голосовые
+// сообщения Telegram — в OGG/Opus. Подпись файла не по формату может сбить
+// с толку детектор формата на стороне ElevenLabs.
+export function extensionForAudioMimeType(mimeType: string): string {
   if (mimeType.includes("mp4")) return "mp4";
   if (mimeType.includes("mpeg")) return "mp3";
   if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("ogg")) return "ogg";
   return "webm";
 }
 

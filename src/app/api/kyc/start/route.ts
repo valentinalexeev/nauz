@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getKycProvider } from "@/lib/kyc/provider";
+import { startKycForVoice } from "@/lib/voices/start-kyc";
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -15,26 +14,17 @@ export async function POST(request: Request) {
 
   const { voiceId } = (await request.json()) as { voiceId: string };
 
-  const provider = getKycProvider();
-  const result = await provider.startVerification({
-    userId: user.id,
-    voiceId,
-    email: user.email!,
-  });
-
-  // service-role клиент: запись верификации создаётся от имени системы
-  const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("kyc_verifications").insert({
-    voice_id: voiceId,
-    user_id: user.id,
-    provider: provider.name,
-    external_reference_id: result.externalReferenceId,
-    status: "pending",
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const { redirectUrl } = await startKycForVoice({
+      userId: user.id,
+      voiceId,
+      email: user.email!,
+    });
+    return NextResponse.json({ redirectUrl });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "kyc start failed" },
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json({ redirectUrl: result.redirectUrl });
 }
