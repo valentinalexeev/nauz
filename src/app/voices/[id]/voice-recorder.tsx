@@ -365,7 +365,12 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       )}
 
       {state === "uploading" && !audioUrl && (
-        <p className="text-sm text-neutral-500">Отправляем...</p>
+        <div className="flex flex-col gap-2">
+          <div className="rounded-lg bg-neutral-100 px-3 py-2">
+            <LiveWaveform processing mode="scrolling" height={48} barColor="#171717" />
+          </div>
+          <p className="text-sm text-neutral-500">Отправляем...</p>
+        </div>
       )}
 
       {(state === "recorded" || state === "uploading") && audioUrl && (

@@ -76,6 +76,20 @@ export const LiveWaveform = ({
   const staticBarsRef = useRef<number[]>([])
   const needsRedrawRef = useRef(true)
   const gradientCacheRef = useRef<CanvasGradient | null>(null)
+  // "Свежие" колбэки без переустановки микрофона на каждый рендер: если
+  // вызывающий код передаёт инлайн-функцию (новую ссылку каждый рендер —
+  // как onError в voice-recorder.tsx, чей родитель перерисовывается раз в
+  // секунду из-за обратного отсчёта), она не должна быть в зависимостях
+  // эффекта настройки микрофона — иначе AudioContext пересоздаётся и
+  // история отрисовки сбрасывается почти каждую секунду.
+  const onErrorRef = useRef(onError)
+  const onStreamReadyRef = useRef(onStreamReady)
+  const onStreamEndRef = useRef(onStreamEnd)
+  useEffect(() => {
+    onErrorRef.current = onError
+    onStreamReadyRef.current = onStreamReady
+    onStreamEndRef.current = onStreamEnd
+  })
   const lastWidthRef = useRef(0)
 
   const heightStyle = typeof height === "number" ? `${height}px` : height
@@ -245,7 +259,7 @@ export const LiveWaveform = ({
       // Внешний поток нам не принадлежит — не останавливаем его чужие треки.
       if (streamRef.current && !externalStream) {
         streamRef.current.getTracks().forEach((track) => track.stop())
-        onStreamEnd?.()
+        onStreamEndRef.current?.()
       }
       streamRef.current = null
       if (
@@ -288,7 +302,7 @@ export const LiveWaveform = ({
       try {
         connectAnalyser(externalStream)
       } catch (error) {
-        onError?.(error as Error)
+        onErrorRef.current?.(error as Error)
         return
       }
       return () => {
@@ -322,10 +336,10 @@ export const LiveWaveform = ({
                 autoGainControl: true,
               },
         })
-        onStreamReady?.(stream)
+        onStreamReadyRef.current?.(stream)
         connectAnalyser(stream)
       } catch (error) {
-        onError?.(error as Error)
+        onErrorRef.current?.(error as Error)
       }
     }
 
@@ -335,7 +349,7 @@ export const LiveWaveform = ({
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop())
         streamRef.current = null
-        onStreamEnd?.()
+        onStreamEndRef.current?.()
       }
       if (
         audioContextRef.current &&
@@ -349,16 +363,11 @@ export const LiveWaveform = ({
         animationRef.current = 0
       }
     }
-  }, [
-    active,
-    deviceId,
-    externalStream,
-    fftSize,
-    smoothingTimeConstant,
-    onError,
-    onStreamReady,
-    onStreamEnd,
-  ])
+    // onError/onStreamReady/onStreamEnd намеренно не в зависимостях —
+    // читаются через *Ref.current (см. выше), чтобы инлайн-колбэки не
+    // пересоздавали AudioContext на каждый рендер вызывающего компонента.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, deviceId, externalStream, fftSize, smoothingTimeConstant])
 
   // Animation loop
   useEffect(() => {
