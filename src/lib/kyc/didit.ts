@@ -110,6 +110,9 @@ export const diditKycProvider: KycProvider = {
         workflow_id: workflowId(),
         vendor_data: voiceId,
         callback: `${siteUrl()}/voices/${voiceId}`,
+        // Интерфейс Науз только русский — предвыбираем язык хостед-сессии
+        // Didit, чтобы пользователю не пришлось переключать вручную.
+        language: "ru",
         // email передаём как metadata для сверки на стороне Didit, если
         // потребуется — сама верификация identity документов не зависит от него.
         metadata: { email },
