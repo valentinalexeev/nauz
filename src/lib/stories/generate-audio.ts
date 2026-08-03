@@ -2,6 +2,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { generateSpeech } from "@/lib/elevenlabs/client";
 import { embedWatermark } from "@/lib/watermark";
+import { embedProvenanceTags } from "@/lib/provenance/id3-tags";
 import { ALLOWED_SPEEDS } from "@/lib/stories/speed-options";
 
 export interface GenerateStoryAudioParams {
@@ -47,6 +48,21 @@ export async function generateStoryAudio({
 
   if (!voice?.elevenlabs_voice_id) {
     throw new Error("voice not ready");
+  }
+
+  // Для провенанса (см. src/lib/provenance/id3-tags.ts) — на случай утечки
+  // записи нужно уметь выйти на человека, который загрузил образец и прошёл
+  // KYC (не обязательно на владельца голоса — тот может быть уже покойным).
+  let kycProvider: string | null = null;
+  let kycSessionId: string | null = null;
+  if (voice.kyc_verification_id) {
+    const { data: verification } = await admin
+      .from("kyc_verifications")
+      .select("provider, external_reference_id")
+      .eq("id", voice.kyc_verification_id)
+      .single();
+    kycProvider = verification?.provider ?? null;
+    kycSessionId = verification?.external_reference_id ?? null;
   }
 
   const { data: template } = await admin
@@ -102,10 +118,17 @@ export async function generateStoryAudio({
       },
     );
 
+    const taggedAudio = embedProvenanceTags(watermarkedAudio, {
+      generationId: generation!.id,
+      voiceId: voice.id,
+      kycProvider,
+      kycSessionId,
+    });
+
     const path = `${userId}/${generation!.id}.mp3`;
     const { error: uploadError } = await admin.storage
       .from("audio-generations")
-      .upload(path, Buffer.from(watermarkedAudio), {
+      .upload(path, Buffer.from(taggedAudio), {
         contentType: "audio/mpeg",
       });
 
