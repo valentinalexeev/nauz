@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { StoryPlayer } from "./story-player";
 
 export default async function StoryPage({
   params,
@@ -51,11 +52,7 @@ export default async function StoryPage({
           Не удалось сгенерировать аудио, попробуйте ещё раз.
         </p>
       )}
-      {audioUrl && (
-        <audio controls src={audioUrl} className="w-full">
-          Ваш браузер не поддерживает воспроизведение аудио.
-        </audio>
-      )}
+      {audioUrl && <StoryPlayer storyId={story.id} audioUrl={audioUrl} />}
 
       <p className="whitespace-pre-wrap text-neutral-700">{story.text}</p>
     </main>

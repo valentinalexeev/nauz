@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function NewVoicePage() {
   const router = useRouter();
@@ -67,16 +70,16 @@ export default function NewVoicePage() {
     <main className="flex-1 max-w-lg w-full mx-auto px-6 py-16 flex flex-col gap-8">
       <h1 className="text-2xl font-semibold">Новый голос</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <label className="flex flex-col gap-2 text-sm">
-          Как назвать этот голос?
-          <input
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="voice-label">Как назвать этот голос?</Label>
+          <Input
+            id="voice-label"
             required
             placeholder="Мама, Дедушка Игорь..."
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
           />
-        </label>
+        </div>
 
         <div className="rounded-lg bg-neutral-100 px-4 py-4 text-sm text-neutral-600 flex flex-col gap-3">
           <p>
@@ -101,13 +104,9 @@ export default function NewVoicePage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors disabled:opacity-50"
-        >
+        <Button type="submit" disabled={submitting} className="rounded-full w-fit">
           {submitting ? "Создаём..." : "Продолжить к подтверждению личности"}
-        </button>
+        </Button>
       </form>
     </main>
   );

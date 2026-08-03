@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { Button } from "@/components/ui/button";
 
 /**
  * Экран-заглушка для локальной разработки, имитирующий прохождение KYC.
@@ -42,12 +43,9 @@ export default async function KycStubPage({
         Сейчас используется тестовая заглушка для разработки.
       </p>
       <form action={approve}>
-        <button
-          type="submit"
-          className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium"
-        >
+        <Button type="submit" className="rounded-full">
           Симулировать успешное прохождение
-        </button>
+        </Button>
       </form>
     </main>
   );

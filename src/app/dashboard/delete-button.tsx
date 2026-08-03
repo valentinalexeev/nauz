@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export function DeleteButton({
   endpoint,
@@ -27,13 +28,14 @@ export function DeleteButton({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="link"
       onClick={handleDelete}
       disabled={deleting}
-      className="text-xs text-red-600 underline disabled:opacity-50"
+      className="text-destructive h-auto p-0 text-xs underline"
     >
       {deleting ? "Удаляем..." : "Удалить"}
-    </button>
+    </Button>
   );
 }

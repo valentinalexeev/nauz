@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Voice, StoryKind, StoryTemplate } from "@/lib/types";
 import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 export default function NewStoryPage() {
   const router = useRouter();
@@ -76,13 +81,13 @@ export default function NewStoryPage() {
         </p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <label className="flex flex-col gap-2 text-sm">
-            Чьим голосом озвучить?
-            <select
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="voice-select">Чьим голосом озвучить?</Label>
+            <Select
+              id="voice-select"
               required
               value={voiceId}
               onChange={(e) => setVoiceId(e.target.value)}
-              className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
             >
               <option value="" disabled>
                 Выберите голос
@@ -92,8 +97,8 @@ export default function NewStoryPage() {
                   {v.label}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
 
           <div className="flex gap-4 text-sm">
             <label className="flex items-center gap-2">
@@ -116,13 +121,13 @@ export default function NewStoryPage() {
                 Пока нет ни одной готовой сказки.
               </p>
             ) : (
-              <label className="flex flex-col gap-2 text-sm">
-                Какую сказку озвучить?
-                <select
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="template-select">Какую сказку озвучить?</Label>
+                <Select
+                  id="template-select"
                   required
                   value={templateId}
                   onChange={(e) => setTemplateId(e.target.value)}
-                  className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
                 >
                   <option value="" disabled>
                     Выберите сказку
@@ -132,54 +137,48 @@ export default function NewStoryPage() {
                       {t.title}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </div>
             )
           ) : (
             <>
-              <input
+              <Input
                 required
                 placeholder="Название"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
               />
 
-              <textarea
+              <Textarea
                 required
                 rows={10}
                 placeholder="Текст письма..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="rounded-lg border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-900"
               />
             </>
           )}
 
-          <label className="flex flex-col gap-2 text-sm">
-            Скорость речи
-            <select
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="speed-select">Скорость речи</Label>
+            <Select
+              id="speed-select"
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
-              className="rounded-lg border border-neutral-300 px-4 py-3 outline-none focus:border-neutral-900"
             >
               {SPEED_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting || !canSubmit}
-            className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors disabled:opacity-50"
-          >
+          <Button type="submit" disabled={submitting || !canSubmit} className="rounded-full w-fit">
             {submitting ? "Создаём аудио..." : "Создать запись"}
-          </button>
+          </Button>
         </form>
       )}
     </main>

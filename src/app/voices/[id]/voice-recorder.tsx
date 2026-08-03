@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LiveWaveform } from "@/components/audio/live-waveform";
+import { MicSelector } from "@/components/audio/mic-selector";
 
 const RECORDING_SECONDS = 60;
 
@@ -60,6 +62,7 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
   const [secondsLeft, setSecondsLeft] = useState(RECORDING_SECONDS);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -83,8 +86,12 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       // Отключаем шумоподавление/автоусиление/эхоподавление: браузер по
       // умолчанию агрессивно чистит сигнал с микрофона, что искажает тембр
       // голоса и заметно ухудшает качество клонирования в ElevenLabs.
+      // Это отдельный поток от того, что использует LiveWaveform для
+      // визуализации (там эти опции жёстко включены) — специально не
+      // переиспользуем его, чтобы не портить качество записываемого сэмпла.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
@@ -179,29 +186,43 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
       </div>
 
       {state === "idle" && (
-        <button
-          onClick={startRecording}
-          className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors"
-        >
-          Записать (30 сек)
-        </button>
+        <div className="flex flex-col gap-4">
+          <MicSelector value={deviceId} onValueChange={setDeviceId} />
+          <button
+            onClick={startRecording}
+            className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors w-fit"
+          >
+            Записать ({RECORDING_SECONDS} сек)
+          </button>
+        </div>
       )}
 
       {state === "recording" && (
-        <div className="flex items-center gap-4">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-          </span>
-          <span className="text-sm text-neutral-600">
-            Идёт запись... осталось {secondsLeft} сек
-          </span>
-          <button
-            onClick={stopRecording}
-            className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
-          >
-            Стоп
-          </button>
+        <div className="flex flex-col gap-4">
+          <div className="rounded-lg bg-neutral-100 px-3 py-2">
+            <LiveWaveform
+              active
+              deviceId={deviceId}
+              mode="scrolling"
+              height={48}
+              barColor="var(--foreground)"
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+            </span>
+            <span className="text-sm text-neutral-600">
+              Идёт запись... осталось {secondsLeft} сек
+            </span>
+            <button
+              onClick={stopRecording}
+              className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
+            >
+              Стоп
+            </button>
+          </div>
         </div>
       )}
 
