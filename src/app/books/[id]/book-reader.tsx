@@ -201,8 +201,13 @@ export function BookReader({
         {chapters
           .sort((a, b) => a.order_index - b.order_index)
           .map((chapter) => {
-            const voiceId = chapterVoiceId[chapter.id] ?? voices[0]?.id ?? "";
-            const generation = generationByKey[`${chapter.id}:${voiceId}`];
+            // Несколько голосов могут озвучить одну и ту же главу — держим
+            // все готовые версии сразу, а не только последнюю выбранную.
+            const existingVoices = voices.filter(
+              (v) => generationByKey[`${chapter.id}:${v.id}`],
+            );
+            const nextVoiceId = chapterVoiceId[chapter.id] ?? voices[0]?.id ?? "";
+            const alreadyHasNextVoice = existingVoices.some((v) => v.id === nextVoiceId);
             const generating = generatingChapterId === chapter.id;
             return (
               <li
@@ -210,52 +215,62 @@ export function BookReader({
                 id={`chapter-${chapter.order_index}`}
                 className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3 scroll-mt-6"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-neutral-900">
-                    Глава {chapter.order_index}. {chapter.title}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`voice-select-${chapter.id}`} className="text-xs">
-                      Кто прочитает?
-                    </Label>
-                    <Select
-                      id={`voice-select-${chapter.id}`}
-                      value={voiceId}
-                      onChange={(e) =>
-                        setChapterVoiceId((prev) => ({
-                          ...prev,
-                          [chapter.id]: e.target.value,
-                        }))
-                      }
-                      className="w-auto"
-                    >
-                      {voices.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
+                <p className="text-sm font-medium text-neutral-900">
+                  Глава {chapter.order_index}. {chapter.title}
+                </p>
                 <p className="whitespace-pre-wrap text-sm text-neutral-600">
                   {chapter.text_plain}
                 </p>
-                {generation ? (
-                  <ChapterPlayer
-                    recapAudioUrl={generation.recapAudioUrl}
-                    chapterAudioUrl={generation.audioUrl}
-                    recapDelaySeconds={generation.recapDelaySeconds}
-                  />
-                ) : (
+
+                {existingVoices.map((v) => {
+                  const generation = generationByKey[`${chapter.id}:${v.id}`];
+                  return (
+                    <div key={v.id} className="flex flex-col gap-1">
+                      <span className="text-xs text-neutral-500">Голос: {v.label}</span>
+                      <ChapterPlayer
+                        recapAudioUrl={generation.recapAudioUrl}
+                        chapterAudioUrl={generation.audioUrl}
+                        recapDelaySeconds={generation.recapDelaySeconds}
+                      />
+                    </div>
+                  );
+                })}
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Label htmlFor={`voice-select-${chapter.id}`} className="text-xs">
+                    {existingVoices.length ? "Озвучить ещё одним голосом:" : "Кто прочитает?"}
+                  </Label>
+                  <Select
+                    id={`voice-select-${chapter.id}`}
+                    value={nextVoiceId}
+                    onChange={(e) =>
+                      setChapterVoiceId((prev) => ({
+                        ...prev,
+                        [chapter.id]: e.target.value,
+                      }))
+                    }
+                    className="w-auto"
+                  >
+                    {voices.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </Select>
                   <Button
                     type="button"
+                    size="sm"
                     disabled={generating}
                     onClick={() => handleGenerate(chapter.id)}
-                    className="rounded-full w-fit"
+                    className="rounded-full"
                   >
-                    {generating ? "Озвучиваем..." : "Озвучить главу"}
+                    {generating
+                      ? "Озвучиваем..."
+                      : alreadyHasNextVoice
+                        ? "Переозвучить"
+                        : "Озвучить"}
                   </Button>
-                )}
+                </div>
               </li>
             );
           })}

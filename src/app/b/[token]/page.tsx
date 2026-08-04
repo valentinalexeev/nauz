@@ -64,23 +64,42 @@ export default async function SharedBookPage({
     .eq("book_id", book.id)
     .order("order_index", { ascending: true });
 
+  const { data: voices } = await admin
+    .from("voices")
+    .select("id, label")
+    .eq("owner_id", link.owner_id);
+  const voiceLabelById = new Map((voices ?? []).map((v) => [v.id, v.label]));
+
   const chapterIds = (chapters ?? []).map((c) => c.id);
   const { data: generations } = chapterIds.length
     ? await admin
         .from("book_chapter_generations")
-        .select("chapter_id, audio_url, recap_audio_url, recap_delay_seconds")
+        .select("chapter_id, voice_id, audio_url, recap_audio_url, recap_delay_seconds")
         .in("chapter_id", chapterIds)
         .eq("owner_id", link.owner_id)
         .eq("status", "ready")
         .order("created_at", { ascending: false })
-    : { data: [] as { chapter_id: string; audio_url: string | null; recap_audio_url: string | null; recap_delay_seconds: number }[] };
+    : {
+        data: [] as {
+          chapter_id: string;
+          voice_id: string;
+          audio_url: string | null;
+          recap_audio_url: string | null;
+          recap_delay_seconds: number;
+        }[],
+      };
 
-  const generationByChapterId = new Map<
+  // Несколько голосов могут озвучить одну и ту же главу — держим все
+  // готовые версии (последнюю на каждый голос), а не только одну.
+  const generationsByChapterId = new Map<
     string,
-    { audioUrl: string; recapAudioUrl: string | null; recapDelaySeconds: number }
+    { voiceLabel: string; audioUrl: string; recapAudioUrl: string | null; recapDelaySeconds: number }[]
   >();
+  const seenChapterVoice = new Set<string>();
   for (const g of generations ?? []) {
-    if (generationByChapterId.has(g.chapter_id) || !g.audio_url) continue;
+    const key = `${g.chapter_id}:${g.voice_id}`;
+    if (seenChapterVoice.has(key) || !g.audio_url) continue;
+    seenChapterVoice.add(key);
 
     const { data: audioSigned } = await admin.storage
       .from("audio-generations")
@@ -95,11 +114,14 @@ export default async function SharedBookPage({
       recapAudioUrl = recapSigned?.signedUrl ?? null;
     }
 
-    generationByChapterId.set(g.chapter_id, {
+    const list = generationsByChapterId.get(g.chapter_id) ?? [];
+    list.push({
+      voiceLabel: voiceLabelById.get(g.voice_id) ?? "неизвестный голос",
       audioUrl: audioSigned.signedUrl,
       recapAudioUrl,
       recapDelaySeconds: g.recap_delay_seconds,
     });
+    generationsByChapterId.set(g.chapter_id, list);
   }
 
   return (
@@ -108,7 +130,7 @@ export default async function SharedBookPage({
 
       <ul className="flex flex-col gap-4">
         {(chapters ?? []).map((chapter) => {
-          const generation = generationByChapterId.get(chapter.id);
+          const chapterGenerations = generationsByChapterId.get(chapter.id) ?? [];
           return (
             <li
               key={chapter.id}
@@ -120,12 +142,19 @@ export default async function SharedBookPage({
               <p className="whitespace-pre-wrap text-sm text-neutral-600">
                 {chapter.text_plain}
               </p>
-              {generation ? (
-                <ChapterPlayer
-                  recapAudioUrl={generation.recapAudioUrl}
-                  chapterAudioUrl={generation.audioUrl}
-                  recapDelaySeconds={generation.recapDelaySeconds}
-                />
+              {chapterGenerations.length ? (
+                chapterGenerations.map((generation, i) => (
+                  <div key={i} className="flex flex-col gap-1">
+                    <span className="text-xs text-neutral-500">
+                      Голос: {generation.voiceLabel}
+                    </span>
+                    <ChapterPlayer
+                      recapAudioUrl={generation.recapAudioUrl}
+                      chapterAudioUrl={generation.audioUrl}
+                      recapDelaySeconds={generation.recapDelaySeconds}
+                    />
+                  </div>
+                ))
               ) : (
                 <p className="text-sm text-neutral-400">Эта глава пока не озвучена.</p>
               )}
