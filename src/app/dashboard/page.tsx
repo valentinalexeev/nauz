@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice, Story } from "@/lib/types";
 import { DeleteButton } from "./delete-button";
+import { RenameVoiceButton } from "@/components/voice/rename-voice-button";
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
@@ -96,10 +97,13 @@ export default async function DashboardPage() {
                     {statusLabel(voice.status)}
                   </span>
                   {voice.status !== "revoked" && (
-                    <DeleteButton
-                      endpoint={`/api/voices/${voice.id}`}
-                      confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
-                    />
+                    <>
+                      <RenameVoiceButton voiceId={voice.id} currentLabel={voice.label} />
+                      <DeleteButton
+                        endpoint={`/api/voices/${voice.id}`}
+                        confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
+                      />
+                    </>
                   )}
                 </div>
               </li>

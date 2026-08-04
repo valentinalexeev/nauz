@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice, KycStatus } from "@/lib/types";
 import { VoiceRecorder } from "./voice-recorder";
 import { AutoRefresh } from "./auto-refresh";
+import { RenameVoiceButton } from "@/components/voice/rename-voice-button";
 
 export default async function VoicePage({
   params,
@@ -36,7 +37,12 @@ export default async function VoicePage({
   return (
     <main className="flex-1 max-w-lg w-full mx-auto px-6 py-16 flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-semibold">{(voice as Voice).label}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">{(voice as Voice).label}</h1>
+          {voice.status !== "revoked" && (
+            <RenameVoiceButton voiceId={voice.id} currentLabel={(voice as Voice).label} />
+          )}
+        </div>
         <Link href="/dashboard" className="text-sm text-neutral-500 underline">
           ← назад в дашборд
         </Link>

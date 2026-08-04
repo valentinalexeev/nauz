@@ -3,6 +3,50 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { deleteVoice } from "@/lib/elevenlabs/client";
 
+/**
+ * Переименование — единственное поле, которое владелец может менять сам
+ * (RLS-политика "voices: owner can update" разрешает update в принципе,
+ * но здесь явно ограничиваем набор полей до label, а не доверяем
+ * клиенту не прислать лишнее).
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: voiceId } = await params;
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { label } = (await request.json()) as { label?: string };
+  const trimmed = label?.trim();
+  if (!trimmed) {
+    return NextResponse.json({ error: "label required" }, { status: 400 });
+  }
+
+  const { data: voice, error } = await supabase
+    .from("voices")
+    .update({ label: trimmed })
+    .eq("id", voiceId)
+    .eq("owner_id", user.id)
+    .select("label")
+    .single();
+
+  if (error || !voice) {
+    return NextResponse.json(
+      { error: error?.message ?? "not found" },
+      { status: 404 },
+    );
+  }
+
+  return NextResponse.json({ label: voice.label });
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
