@@ -243,8 +243,10 @@ async function StoriesTab({ supabase }: { supabase: Supabase }) {
           >
             <div className="flex min-w-0 items-center gap-3.5">
               <div
-                className={`h-9 w-9 shrink-0 rounded-full ${isReady ? "bg-clay" : "bg-border"}`}
-              />
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-semibold text-white ${isReady ? "bg-clay" : "bg-border text-ink-soft"}`}
+              >
+                {story.title.slice(0, 1).toUpperCase()}
+              </div>
               <div className="min-w-0">
                 <Link
                   href={`/stories/${story.id}`}
