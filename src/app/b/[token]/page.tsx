@@ -29,7 +29,44 @@ export async function generateMetadata({
     .eq("id", link.book_id)
     .single();
 
-  return { title: book ? `Науз — ${book.title}` : "Науз" };
+  if (!book) return { title: "Науз" };
+
+  // Название и голос(а) — чтобы в превью ссылки у мессенджера было видно,
+  // что за книга и кто её читает, а не только общий заголовок сайта.
+  // Голоса берём именно этого владельца (owner_id) — та же изоляция, что
+  // и на самой странице: ссылка не должна намекать на чужие голоса.
+  const { data: chapters } = await admin
+    .from("book_chapters")
+    .select("id")
+    .eq("book_id", link.book_id);
+  const chapterIds = (chapters ?? []).map((c) => c.id);
+
+  let voiceLabels: string[] = [];
+  if (chapterIds.length) {
+    const { data: generations } = await admin
+      .from("book_chapter_generations")
+      .select("voice_id")
+      .in("chapter_id", chapterIds)
+      .eq("owner_id", link.owner_id)
+      .eq("status", "ready");
+    const voiceIds = [...new Set((generations ?? []).map((g) => g.voice_id))];
+    if (voiceIds.length) {
+      const { data: voices } = await admin.from("voices").select("label").in("id", voiceIds);
+      voiceLabels = [...new Set((voices ?? []).map((v) => v.label))];
+    }
+  }
+
+  const title = `Науз — ${book.title}`;
+  const description = voiceLabels.length
+    ? `Читают: ${voiceLabels.join(", ")}`
+    : "Книга по главам голосом близкого человека";
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "music.album" },
+    twitter: { card: "summary", title, description },
+  };
 }
 
 /**

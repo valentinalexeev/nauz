@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getReadyVoiceLabels } from "@/lib/voices/ready-voice-labels";
 import { ListenerPlayer } from "@/components/audio/listener-player";
 
 export async function generateMetadata({
@@ -12,11 +13,27 @@ export async function generateMetadata({
   const admin = createSupabaseAdminClient();
   const { data: story } = await admin
     .from("stories")
-    .select("title")
+    .select("id, title")
     .eq("share_token", token)
     .single();
 
-  return { title: story ? `Науз — ${story.title}` : "Науз" };
+  if (!story) return { title: "Науз" };
+
+  // Название и голос(а) — чтобы в превью ссылки у мессенджера (Telegram,
+  // WhatsApp и т.п.) было видно, что за запись и кто читает, а не только
+  // общий заголовок сайта.
+  const voiceLabels = await getReadyVoiceLabels(admin, "audio_generations", "story_id", story.id);
+  const title = `Науз — ${story.title}`;
+  const description = voiceLabels.length
+    ? `Читает: ${voiceLabels.join(", ")}`
+    : "Аудиозапись голосом близкого человека";
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "music.song" },
+    twitter: { card: "summary", title, description },
+  };
 }
 
 /**
