@@ -115,7 +115,8 @@ export function BookReader({
             return (
               <li
                 key={chapter.id}
-                className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3"
+                id={`chapter-${chapter.order_index}`}
+                className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3 scroll-mt-6"
               >
                 <p className="text-sm font-medium text-neutral-900">
                   Глава {chapter.order_index}. {chapter.title}

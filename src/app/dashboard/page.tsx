@@ -9,7 +9,7 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: voices }, { data: stories }] = await Promise.all([
+  const [{ data: voices }, { data: stories }, { data: books }] = await Promise.all([
     supabase
       .from("voices")
       .select("*")
@@ -18,7 +18,27 @@ export default async function DashboardPage() {
       .from("stories")
       .select("*")
       .order("created_at", { ascending: false }),
+    supabase
+      .from("books")
+      .select("*")
+      .order("title", { ascending: true }),
   ]);
+
+  const bookIds = (books ?? []).map((b) => b.id);
+  const { data: chapters } = bookIds.length
+    ? await supabase
+        .from("book_chapters")
+        .select("id, book_id, order_index")
+        .in("book_id", bookIds)
+        .order("order_index", { ascending: true })
+    : { data: [] as { id: string; book_id: string; order_index: number }[] };
+
+  const chaptersByBookId = new Map<string, { id: string; order_index: number }[]>();
+  for (const c of chapters ?? []) {
+    const list = chaptersByBookId.get(c.book_id) ?? [];
+    list.push({ id: c.id, order_index: c.order_index });
+    chaptersByBookId.set(c.book_id, list);
+  }
 
   // Голос сказки узнаём через её последнюю генерацию — у stories нет
   // собственного voice_id, связь идёт через audio_generations.
@@ -44,9 +64,6 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold">Науз</h1>
           <p className="text-sm text-neutral-500">{user?.email}</p>
         </div>
-        <Link href="/books" className="text-sm font-medium text-neutral-900 underline">
-          Книги по главам
-        </Link>
       </header>
 
       <section className="flex flex-col gap-4">
@@ -84,6 +101,38 @@ export default async function DashboardPage() {
                       confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
                     />
                   )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-medium">Книги по главам</h2>
+        {!books?.length ? (
+          <p className="text-sm text-neutral-500">Пока нет ни одной книги.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {books.map((book) => (
+              <li
+                key={book.id}
+                className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between gap-3"
+              >
+                <Link href={`/books/${book.id}`} className="underline">
+                  {book.title}
+                </Link>
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <span>главы:</span>
+                  {(chaptersByBookId.get(book.id) ?? []).map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/books/${book.id}#chapter-${c.order_index}`}
+                      className="rounded-full border border-neutral-300 w-6 h-6 flex items-center justify-center hover:border-neutral-900 transition-colors"
+                    >
+                      {c.order_index}
+                    </Link>
+                  ))}
                 </div>
               </li>
             ))}
