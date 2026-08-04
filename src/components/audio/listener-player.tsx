@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   AudioPlayerProvider,
   AudioPlayerButton,
@@ -60,6 +61,15 @@ function ListenerPlayerInner({
   const started = player.isItemActive(id) && (player.isPlaying || time > 0);
   const progress = duration ? Math.min(100, (time / duration) * 100) : 0;
 
+  // Без этого длительность не была известна, пока не нажмёшь play: src
+  // проставляется в <audio> только через setActiveItem()/play(). Здесь
+  // ставим сразу при монтировании — setActiveItem() только загружает
+  // метаданные, не запускает воспроизведение.
+  useEffect(() => {
+    player.setActiveItem({ id, src });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, src]);
+
   return (
     <div className="flex flex-col items-center rounded-[28px] bg-[oklch(0.24_0.02_40)] px-7 py-10 text-center text-[oklch(0.93_0.02_60)]">
       {eyebrow && (
@@ -86,7 +96,11 @@ function ListenerPlayerInner({
         />
       </div>
       <div className="text-xs text-[oklch(0.65_0.02_55)]">
-        {started ? `${formatTime(time)} · ${formatTime(duration ?? NaN)}` : "Нажмите, чтобы начать"}
+        {started
+          ? `${formatTime(time)} · ${formatTime(duration ?? NaN)}`
+          : duration
+            ? `${formatTime(0)} · ${formatTime(duration)}`
+            : "Нажмите, чтобы начать"}
       </div>
     </div>
   );

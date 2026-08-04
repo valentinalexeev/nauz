@@ -114,6 +114,21 @@ function ChapterPlayerInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
+  const item =
+    stage === "recap" ? { id: "recap", src: recapAudioUrl! } : { id: "chapter", src: chapterAudioUrl };
+
+  // Без этого длительность не была известна, пока не нажмёшь play: src
+  // проставляется в <audio> только через setActiveItem()/play(), а до
+  // первого нажатия элемент вообще не знал, какой файл будет играть.
+  // setActiveItem() только загружает метаданные, не запускает
+  // воспроизведение — безопасно вызывать и для стадии, которая вот-вот
+  // сама запустится автоплеем (play() ниже просто не пересоздаст src).
+  useEffect(() => {
+    if (stage === "waiting") return;
+    player.setActiveItem(item);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id, item.src, stage]);
+
   if (stage === "waiting") {
     return (
       <div
@@ -154,9 +169,6 @@ function ChapterPlayerInner({
       </div>
     );
   }
-
-  const item =
-    stage === "recap" ? { id: "recap", src: recapAudioUrl! } : { id: "chapter", src: chapterAudioUrl };
 
   if (dark) {
     return (
