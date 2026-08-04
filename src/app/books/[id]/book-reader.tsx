@@ -33,11 +33,13 @@ export function BookReader({
   chapters,
   voices,
   generationByKey,
+  siteUrl,
 }: {
   bookId: string;
   chapters: RawBookChapter[];
   voices: Voice[];
   generationByKey: Record<string, ChapterGeneration>;
+  siteUrl: string;
 }) {
   const router = useRouter();
   const [voiceId, setVoiceId] = useState(voices[0]?.id ?? "");
@@ -46,6 +48,9 @@ export function BookReader({
   const [recapDelaySeconds, setRecapDelaySeconds] = useState(5);
   const [generatingChapterId, setGeneratingChapterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!voices.length) {
     return (
@@ -80,6 +85,35 @@ export function BookReader({
     setGeneratingChapterId(null);
   }
 
+  async function handleShare() {
+    setSharing(true);
+    setError(null);
+
+    const res = await fetch(`/api/books/${bookId}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voiceId }),
+    });
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(body.error ?? "Не удалось создать ссылку");
+      setSharing(false);
+      return;
+    }
+
+    const { shareToken } = (await res.json()) as { shareToken: string };
+    setShareUrl(`${siteUrl}/b/${shareToken}`);
+    setSharing(false);
+  }
+
+  async function handleCopyShare() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-4">
@@ -88,7 +122,10 @@ export function BookReader({
           <Select
             id="voice-select"
             value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
+            onChange={(e) => {
+              setVoiceId(e.target.value);
+              setShareUrl(null);
+            }}
           >
             {voices.map((v) => (
               <option key={v.id} value={v.id}>
@@ -137,6 +174,37 @@ export function BookReader({
         Настройки применяются при озвучке новой главы — уже готовые записи
         не меняются.
       </p>
+
+      <div className="flex flex-col gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm">
+        <p className="text-neutral-600">
+          Ссылка на книгу этим голосом без входа в Науз — можно отправить
+          кому угодно.
+        </p>
+        {shareUrl ? (
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
+            />
+            <Button type="button" size="sm" onClick={handleCopyShare}>
+              {copied ? "Скопировано" : "Скопировать"}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={sharing}
+            onClick={handleShare}
+            className="w-fit"
+          >
+            {sharing ? "Создаём ссылку..." : "Получить ссылку"}
+          </Button>
+        )}
+      </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

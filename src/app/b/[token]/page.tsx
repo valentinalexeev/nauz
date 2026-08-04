@@ -3,27 +3,41 @@ import { notFound } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ChapterPlayer } from "@/app/books/[id]/chapter-player";
 
+async function resolveLink(token: string) {
+  const admin = createSupabaseAdminClient();
+  const { data: link } = await admin
+    .from("book_share_links")
+    .select("book_id, voice_id")
+    .eq("share_token", token)
+    .single();
+  return link;
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const { token } = await params;
+  const link = await resolveLink(token);
+  if (!link) return { title: "Науз" };
+
   const admin = createSupabaseAdminClient();
   const { data: book } = await admin
     .from("books")
     .select("title")
-    .eq("share_token", token)
+    .eq("id", link.book_id)
     .single();
 
   return { title: book ? `Науз — ${book.title}` : "Науз" };
 }
 
 /**
- * Публичная страница книги по невидимому токену — без авторизации, по
- * аналогии с /s/[token] для отдельных сказок. Показывает то, что уже
- * озвучено (любым голосом владельца) — генерировать новые главы отсюда
- * нельзя, для этого нужен вход и свой голос.
+ * Публичная страница книги, озвученной КОНКРЕТНЫМ голосом — без
+ * авторизации, по аналогии с /s/[token] для отдельных сказок. Ссылка
+ * привязана к паре (книга, голос) — см. миграцию 0019 и
+ * /api/books/[bookId]/share — поэтому здесь всегда только записи ЭТОГО
+ * голоса, независимо от того, кто ещё озвучивал ту же книгу.
  */
 export default async function SharedBookPage({
   params,
@@ -31,12 +45,15 @@ export default async function SharedBookPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  const link = await resolveLink(token);
+  if (!link) notFound();
+
   const admin = createSupabaseAdminClient();
 
   const { data: book } = await admin
     .from("books")
     .select("*")
-    .eq("share_token", token)
+    .eq("id", link.book_id)
     .single();
 
   if (!book) notFound();
@@ -53,6 +70,7 @@ export default async function SharedBookPage({
         .from("book_chapter_generations")
         .select("chapter_id, audio_url, recap_audio_url, recap_delay_seconds")
         .in("chapter_id", chapterIds)
+        .eq("voice_id", link.voice_id)
         .eq("status", "ready")
         .order("created_at", { ascending: false })
     : { data: [] as { chapter_id: string; audio_url: string | null; recap_audio_url: string | null; recap_delay_seconds: number }[] };
