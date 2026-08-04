@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  AudioPlayerProvider,
+  AudioPlayerButton,
+  AudioPlayerProgress,
+  AudioPlayerTime,
+  AudioPlayerDuration,
+  AudioPlayerSpeed,
+  useAudioPlayer,
+} from "@/components/audio/audio-player";
 import { Button } from "@/components/ui/button";
 
 /**
- * Recap-вопросы (если есть) → пауза → сама глава. Пауза настоящая, не
- * просто переходная фраза внутри одного файла: можно остановить отсчёт
- * на неопределённое время (обсудить с ребёнком вопросы) и продолжить,
- * когда готовы, либо сразу пропустить ожидание.
+ * Recap-вопросы (если есть) → пауза → сама глава, тем же плеером
+ * (AudioPlayerProvider/AudioPlayerButton), что и у обычных сказок — а не
+ * нативным <audio controls>. Пауза настоящая, не просто переходная фраза
+ * внутри одного файла: можно остановить отсчёт на неопределённое время
+ * (обсудить с ребёнком вопросы) и продолжить, когда готовы, либо сразу
+ * пропустить ожидание.
  */
 export function ChapterPlayer({
   recapAudioUrl,
@@ -18,17 +29,50 @@ export function ChapterPlayer({
   chapterAudioUrl: string;
   recapDelaySeconds: number;
 }) {
+  return (
+    <AudioPlayerProvider>
+      <ChapterPlayerInner
+        recapAudioUrl={recapAudioUrl}
+        chapterAudioUrl={chapterAudioUrl}
+        recapDelaySeconds={recapDelaySeconds}
+      />
+    </AudioPlayerProvider>
+  );
+}
+
+function ChapterPlayerInner({
+  recapAudioUrl,
+  chapterAudioUrl,
+  recapDelaySeconds,
+}: {
+  recapAudioUrl: string | null;
+  chapterAudioUrl: string;
+  recapDelaySeconds: number;
+}) {
+  const player = useAudioPlayer();
   const [stage, setStage] = useState<"recap" | "waiting" | "chapter">(
     recapAudioUrl ? "recap" : "chapter",
   );
   const [countdown, setCountdown] = useState<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function clearTimer() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   }
+
+  // AudioPlayerProvider не даёт колбэк на "ended" — слушаем сам элемент
+  // через общий ref, чтобы переключиться с recap на паузу, когда он
+  // доиграл до конца.
+  useEffect(() => {
+    const audio = player.ref.current;
+    if (!audio) return;
+    function handleEnded() {
+      if (stage === "recap") setStage("waiting");
+    }
+    audio.addEventListener("ended", handleEnded);
+    return () => audio.removeEventListener("ended", handleEnded);
+  }, [player.ref, stage]);
 
   useEffect(() => {
     if (stage !== "waiting") return;
@@ -55,7 +99,7 @@ export function ChapterPlayer({
     // Автоплей главы только когда до неё реально дошли после recap/паузы —
     // если recap не было вовсе, глава остаётся на обычный ручной запуск.
     if (stage === "chapter" && recapAudioUrl) {
-      audioRef.current?.play().catch(() => {});
+      player.play({ id: "chapter", src: chapterAudioUrl });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -95,17 +139,16 @@ export function ChapterPlayer({
     );
   }
 
-  const src = stage === "recap" ? recapAudioUrl! : chapterAudioUrl;
+  const item =
+    stage === "recap" ? { id: "recap", src: recapAudioUrl! } : { id: "chapter", src: chapterAudioUrl };
 
   return (
-    <audio
-      ref={audioRef}
-      controls
-      src={src}
-      className="w-full"
-      onEnded={() => {
-        if (stage === "recap") setStage("waiting");
-      }}
-    />
+    <div className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3">
+      <AudioPlayerButton item={item} size="icon" variant="outline" />
+      <AudioPlayerTime />
+      <AudioPlayerProgress className="flex-1" />
+      <AudioPlayerDuration />
+      <AudioPlayerSpeed />
+    </div>
   );
 }
