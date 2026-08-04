@@ -36,16 +36,16 @@ export default async function KycStubPage({
   }
 
   return (
-    <main className="flex-1 max-w-md w-full mx-auto px-6 py-16 flex flex-col gap-6 text-center">
-      <h1 className="text-xl font-semibold">Подтверждение личности (заглушка)</h1>
-      <p className="text-sm text-neutral-600">
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 bg-paper px-6 py-16 text-center">
+      <h1 className="font-serif text-xl font-medium text-ink">
+        Подтверждение личности (заглушка)
+      </h1>
+      <p className="text-sm text-ink-soft">
         В боевой версии здесь открывается флоу реального KYC-провайдера.
         Сейчас используется тестовая заглушка для разработки.
       </p>
       <form action={approve}>
-        <Button type="submit" className="rounded-full">
-          Симулировать успешное прохождение
-        </Button>
+        <Button type="submit">Симулировать успешное прохождение</Button>
       </form>
     </main>
   );

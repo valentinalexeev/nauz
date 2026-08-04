@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice } from "@/lib/types";
+import { AppShell } from "@/components/layout/app-shell";
 import { StoryReader } from "./story-reader";
 import { ShareLink } from "./share-link";
 
@@ -12,6 +12,9 @@ export default async function StoryPage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: story } = await supabase
     .from("stories")
@@ -51,19 +54,12 @@ export default async function StoryPage({
   }
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{story.title}</h1>
-        <Link href="/dashboard" className="text-sm text-neutral-500 underline">
-          ← назад в дашборд
-        </Link>
-      </div>
+    <AppShell active="stories" userEmail={user?.email ?? null}>
+      <h1 className="font-serif text-3xl font-medium text-ink">{story.title}</h1>
 
-      {anyProcessing && (
-        <p className="text-sm text-neutral-500">Готовим аудио...</p>
-      )}
+      {anyProcessing && <p className="text-sm text-ink-soft">Готовим аудио...</p>}
       {anyFailed && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-destructive">
           Не удалось сгенерировать аудио одним из голосов, попробуйте ещё раз.
         </p>
       )}
@@ -82,7 +78,9 @@ export default async function StoryPage({
         />
       )}
 
-      <p className="whitespace-pre-wrap text-neutral-700">{story.text}</p>
-    </main>
+      <p className="whitespace-pre-wrap font-serif text-lg leading-relaxed text-ink-soft">
+        {story.text}
+      </p>
+    </AppShell>
   );
 }

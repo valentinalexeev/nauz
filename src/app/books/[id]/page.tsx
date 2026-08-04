@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Book, Voice } from "@/lib/types";
+import { AppShell } from "@/components/layout/app-shell";
 import { BookReader, type RawBookChapter } from "./book-reader";
 
 export default async function BookPage({
@@ -11,6 +11,9 @@ export default async function BookPage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: book } = await supabase
     .from("books")
@@ -80,13 +83,8 @@ export default async function BookPage({
   }
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold">{(book as Book).title}</h1>
-        <Link href="/books" className="text-sm text-neutral-500 underline">
-          ← ко всем книгам
-        </Link>
-      </div>
+    <AppShell active="books" userEmail={user?.email ?? null}>
+      <h1 className="font-serif text-3xl font-medium text-ink">{(book as Book).title}</h1>
 
       <BookReader
         bookId={id}
@@ -95,6 +93,6 @@ export default async function BookPage({
         generationByKey={generationByKey}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
       />
-    </main>
+    </AppShell>
   );
 }

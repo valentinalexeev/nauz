@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LiveWaveform } from "@/components/audio/live-waveform";
 import { MicSelector } from "@/components/audio/mic-selector";
+import { Button } from "@/components/ui/button";
 
 const RECORDING_SECONDS = 60;
 
@@ -292,129 +293,119 @@ export function VoiceRecorder({ voiceId }: { voiceId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs text-neutral-500">
-          Текст {textIndex + 1} из {TEXTS.length}
-          {takesCount > 0 &&
-            ` — записано образцов: ${takesCount}`}
-        </p>
-        <div className="rounded-lg bg-neutral-100 px-4 py-4 text-sm text-neutral-700 whitespace-pre-line">
-          <p className="mb-2 font-medium text-neutral-900">{currentText.title}</p>
-          {currentText.body}
-        </div>
+      <div className="text-[13px] font-bold tracking-wide text-clay uppercase">
+        Шаг 2 из 3 · Голос
       </div>
+      <p className="max-w-lg text-[15px] leading-relaxed text-ink-soft">
+        Прочитайте вслух {TEXTS.length} коротких фрагментов — этого
+        достаточно, чтобы Науз узнал ваш голос и мог им читать сказки и
+        письма.
+      </p>
 
-      {state === "idle" && (
-        <div className="flex flex-col gap-4">
-          <MicSelector value={deviceId} onValueChange={setDeviceId} />
-          <div className="flex items-center gap-3">
-            <button
-              onClick={startRecording}
-              className="rounded-full bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-700 transition-colors w-fit"
-            >
-              Записать этот текст ({RECORDING_SECONDS} сек)
-            </button>
-            {takesCount > 0 && (
-              <button
-                onClick={finalize}
-                className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
-              >
-                Хватит, отправить {takesCount}{" "}
-                {pluralizeSamples(takesCount)}
-              </button>
-            )}
+      <div className="rounded-2xl bg-surface p-6 sm:p-8">
+        <p className="mb-3 text-xs font-semibold tracking-wide text-clay uppercase">
+          Образец {textIndex + 1} из {TEXTS.length}
+          {takesCount > 0 && ` · записано образцов: ${takesCount}`}
+        </p>
+        <p className="mb-6 whitespace-pre-line font-serif text-lg italic leading-relaxed text-ink">
+          {currentText.body}
+        </p>
+
+        {state === "idle" && (
+          <div className="flex flex-col gap-4">
+            <MicSelector value={deviceId} onValueChange={setDeviceId} />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={startRecording} className="w-fit">
+                Записать этот текст ({RECORDING_SECONDS} сек)
+              </Button>
+              {takesCount > 0 && (
+                <Button onClick={finalize} variant="outline">
+                  Хватит, отправить {takesCount} {pluralizeSamples(takesCount)}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {state === "recording" && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-lg bg-neutral-100 px-3 py-2">
-            {waveformError ? (
-              <p className="py-3 text-center text-xs text-neutral-400">
-                Запись идёт, визуализация недоступна
-              </p>
-            ) : (
+        {state === "recording" && (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl bg-paper px-3 py-2">
+              {waveformError ? (
+                <p className="py-3 text-center text-xs text-ink-soft">
+                  Запись идёт, визуализация недоступна
+                </p>
+              ) : (
+                <LiveWaveform
+                  active
+                  stream={streamRef.current ?? undefined}
+                  deviceId={deviceId}
+                  mode="scrolling"
+                  height={48}
+                  barColor="oklch(0.62 0.09 45)"
+                  // Поток записи идёт без autoGainControl (нужно для качества
+                  // клонирования — см. комментарий в startRecording), поэтому
+                  // на обычном расстоянии от микрофона сигнал заметно тише,
+                  // чем при включённом AGC. sensitivity компенсирует это
+                  // визуально, не затрагивая сам записываемый звук.
+                  sensitivity={3}
+                  onError={() => setWaveformError(true)}
+                />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-destructive" />
+              </span>
+              <span className="text-sm text-ink-soft">
+                Идёт запись... осталось {secondsLeft} сек
+              </span>
+              <Button onClick={stopRecording} variant="outline" size="sm">
+                Стоп
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {state === "uploading" && !audioUrl && (
+          <div className="flex flex-col gap-2">
+            <div className="rounded-xl bg-paper px-3 py-2">
               <LiveWaveform
-                active
-                stream={streamRef.current ?? undefined}
-                deviceId={deviceId}
+                processing
                 mode="scrolling"
                 height={48}
-                barColor="#171717"
-                // Поток записи идёт без autoGainControl (нужно для качества
-                // клонирования — см. комментарий в startRecording), поэтому
-                // на обычном расстоянии от микрофона сигнал заметно тише,
-                // чем при включённом AGC. sensitivity компенсирует это
-                // визуально, не затрагивая сам записываемый звук.
-                sensitivity={3}
-                onError={() => setWaveformError(true)}
+                barColor="oklch(0.62 0.09 45)"
               />
-            )}
+            </div>
+            <p className="text-sm text-ink-soft">Отправляем...</p>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-            </span>
-            <span className="text-sm text-neutral-600">
-              Идёт запись... осталось {secondsLeft} сек
-            </span>
-            <button
-              onClick={stopRecording}
-              className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors"
-            >
-              Стоп
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
-      {state === "uploading" && !audioUrl && (
-        <div className="flex flex-col gap-2">
-          <div className="rounded-lg bg-neutral-100 px-3 py-2">
-            <LiveWaveform processing mode="scrolling" height={48} barColor="#171717" />
+        {(state === "recorded" || state === "uploading") && audioUrl && (
+          <div className="flex flex-col gap-4">
+            <audio controls src={audioUrl} className="w-full" />
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={retry} disabled={state === "uploading"} variant="outline">
+                Записать заново
+              </Button>
+              {!isLastText && (
+                <Button onClick={acceptTake} disabled={state === "uploading"} variant="outline">
+                  Принять и следующий текст
+                </Button>
+              )}
+              <Button onClick={acceptAndSubmit} disabled={state === "uploading"}>
+                {state === "uploading"
+                  ? "Отправляем..."
+                  : isLastText
+                    ? "Принять и отправить"
+                    : "Принять и отправить сейчас"}
+              </Button>
+            </div>
           </div>
-          <p className="text-sm text-neutral-500">Отправляем...</p>
-        </div>
-      )}
+        )}
+      </div>
 
-      {(state === "recorded" || state === "uploading") && audioUrl && (
-        <div className="flex flex-col gap-4">
-          <audio controls src={audioUrl} className="w-full" />
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={retry}
-              disabled={state === "uploading"}
-              className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors disabled:opacity-50"
-            >
-              Записать заново
-            </button>
-            {!isLastText && (
-              <button
-                onClick={acceptTake}
-                disabled={state === "uploading"}
-                className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium hover:border-neutral-900 transition-colors disabled:opacity-50"
-              >
-                Принять и следующий текст
-              </button>
-            )}
-            <button
-              onClick={acceptAndSubmit}
-              disabled={state === "uploading"}
-              className="rounded-full bg-neutral-900 text-white px-6 py-2 text-sm font-medium hover:bg-neutral-700 transition-colors disabled:opacity-50"
-            >
-              {state === "uploading"
-                ? "Отправляем..."
-                : isLastText
-                  ? "Принять и отправить"
-                  : "Принять и отправить сейчас"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

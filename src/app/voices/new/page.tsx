@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function NewVoicePage() {
   const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -22,6 +24,7 @@ export default function NewVoicePage() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
     supabase
       .from("kyc_verifications")
       .select("id")
@@ -84,9 +87,21 @@ export default function NewVoicePage() {
   }
 
   return (
-    <main className="flex-1 max-w-lg w-full mx-auto px-6 py-16 flex flex-col gap-8">
-      <h1 className="text-2xl font-semibold">Новый голос</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <AppShell active="voices" userEmail={userEmail}>
+      <div className="text-[13px] font-bold tracking-wide text-clay uppercase">
+        Шаг 1 из 3 · Голос
+      </div>
+      <div>
+        <h1 className="mb-4 font-serif text-3xl font-medium text-ink">
+          Прежде чем сохранить голос
+        </h1>
+        <p className="max-w-lg text-[15px] leading-relaxed text-ink-soft">
+          Голос — часть личности. Мы клонируем его только с вашего явного
+          согласия и после подтверждения, что это действительно вы.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex max-w-lg flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Label htmlFor="voice-label">Как назвать этот голос?</Label>
           <Input
@@ -98,29 +113,33 @@ export default function NewVoicePage() {
           />
         </div>
 
-        <div className="rounded-lg bg-neutral-100 px-4 py-4 text-sm text-neutral-600 flex flex-col gap-3">
-          <p>
-            {alreadyVerified
-              ? "Личность уже подтверждена раньше — образец голоса можно будет записать сразу на следующем шаге."
-              : "Образец голоса загружается на следующем шаге, после подтверждения личности через KYC-сервис — это нужно, чтобы клонировать можно было только собственный голос или голос родственника, давшего явное согласие."}
-          </p>
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-1"
-            />
-            <span>
-              Я подтверждаю, что это мой голос или голос человека, который
-              дал согласие на его использование в Науз.
-            </span>
-          </label>
+        <label className="flex items-start gap-3 rounded-xl bg-surface px-5 py-4 text-sm leading-relaxed text-ink">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-1 accent-clay"
+          />
+          <span>
+            Это мой собственный голос, и я даю согласие на его использование
+            в Науз — или голос человека, который дал такое согласие сам.
+          </span>
+        </label>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-5 py-5">
+          <div>
+            <p className="text-sm font-semibold text-ink">Подтверждение личности</p>
+            <p className="mt-1 text-[13px] text-ink-soft">
+              {alreadyVerified
+                ? "Уже подтверждено раньше — на следующем шаге сразу запись голоса."
+                : "Чтобы никто не мог создать голос за другого человека"}
+            </p>
+          </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit" disabled={submitting} className="rounded-full w-fit">
+        <Button type="submit" disabled={submitting} className="w-fit">
           {submitting
             ? "Создаём..."
             : alreadyVerified
@@ -128,6 +147,6 @@ export default function NewVoicePage() {
               : "Продолжить к подтверждению личности"}
         </Button>
       </form>
-    </main>
+    </AppShell>
   );
 }

@@ -31,11 +31,12 @@ function StoryPlayerControls({
   audioUrl: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
       <AudioPlayerButton
         item={{ id: storyId, src: audioUrl }}
         size="icon"
-        variant="outline"
+        variant="default"
+        className="rounded-full"
       />
       <AudioPlayerTime />
       <AudioPlayerProgress className="flex-1" />

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { StoryPlayer } from "@/app/stories/[id]/story-player";
+import { ListenerPlayer } from "@/components/audio/listener-player";
 
 export async function generateMetadata({
   params,
@@ -25,10 +25,11 @@ export async function generateMetadata({
  * (16 случайных байт, см. миграцию 0013), поэтому admin-клиент здесь
  * оправдан: сама секретность — в токене, а не в Supabase-сессии.
  *
- * Показывает ВСЕ голоса, которыми озвучена запись, а не только последний —
- * та же логика, что и на приватной /stories/[id] и на публичной /b/[token]
- * для книг: одна запись может быть прочитана несколькими голосами
- * владельца, все версии равноправны.
+ * Тёмный полноэкранный экран слушателя (см. "экран 6" в
+ * docs/Науз - дизайн.dc.html) — без настроек скорости и прочего, что
+ * нужно только владельцу голоса. Показывает ВСЕ голоса, которыми
+ * озвучена запись, а не только последний — та же логика, что и на
+ * приватной /stories/[id] и на публичной /b/[token] для книг.
  */
 export default async function SharedStoryPage({
   params,
@@ -77,23 +78,27 @@ export default async function SharedStoryPage({
   }
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{story.title}</h1>
-
-      {versions.length ? (
-        <div className="flex flex-col gap-4">
-          {versions.map((v, i) => (
-            <div key={i} className="flex flex-col gap-1">
-              <span className="text-xs text-neutral-500">Голос: {v.voiceLabel}</span>
-              <StoryPlayer storyId={`${story.id}:${v.voiceLabel}`} audioUrl={v.audioUrl} />
-            </div>
-          ))}
+    <main className="flex flex-1 flex-col items-center justify-center bg-[oklch(0.22_0.02_40)] px-6 py-16">
+      <div className="flex w-full max-w-md flex-col gap-5">
+        {versions.length ? (
+          versions.map((v, i) => (
+            <ListenerPlayer
+              key={i}
+              id={`${story.id}:${v.voiceLabel}`}
+              src={v.audioUrl}
+              eyebrow={`от ${v.voiceLabel}`}
+              title={story.title}
+            />
+          ))
+        ) : (
+          <p className="rounded-[28px] bg-white/5 px-7 py-10 text-center text-sm text-[oklch(0.65_0.02_55)]">
+            Запись пока не готова.
+          </p>
+        )}
+        <div className="pt-2 text-center text-[11px] tracking-wide text-[oklch(0.5_0.02_55)]">
+          НАУЗ
         </div>
-      ) : (
-        <p className="text-sm text-neutral-500">Запись пока не готова.</p>
-      )}
-
-      <p className="whitespace-pre-wrap text-neutral-700">{story.text}</p>
+      </div>
     </main>
   );
 }

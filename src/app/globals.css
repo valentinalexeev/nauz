@@ -1,38 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Интерфейс нигде не рассчитан на тёмную тему (нет ни одного dark:-варианта) —
-     фиксируем светлую схему явно, иначе браузер в тёмном режиме ОС красит
-     нативные элементы (чекбоксы, поля) и часть фона под dark, а весь текст
-     остаётся жёстко светлым по коду, из-за чего он становится нечитаемым. */
+  /* Токены дизайн-системы "Науз" (docs/Науз - дизайн.dc.html) — тёплая,
+     неяркая палитра на oklch вместо нейтральных серых. Интерфейс нигде не
+     рассчитан на тёмную тему (нет ни одного dark:-варианта) — фиксируем
+     светлую схему явно, иначе браузер в тёмном режиме ОС красит нативные
+     элементы (чекбоксы, поля) и часть фона под dark, а весь текст остаётся
+     жёстко светлым по коду, из-за чего он становится нечитаемым. */
   color-scheme: light;
 
+  --background: oklch(0.97 0.012 60); /* paper */
+  --foreground: oklch(0.24 0.02 50); /* ink */
+
+  /* Прямые токены палитры — для случаев, где готовых shadcn-имён мало
+     (напр. bg-surface, text-ink-soft, bg-sage для статуса "готов"). */
+  --paper: oklch(0.97 0.012 60);
+  --surface: oklch(0.94 0.014 58);
+  --ink: oklch(0.24 0.02 50);
+  --ink-soft: oklch(0.45 0.02 50);
+  --clay: oklch(0.62 0.09 45);
+  --clay-hover: oklch(0.44 0.11 45);
+  --clay-soft: oklch(0.75 0.06 45);
+  --sage: oklch(0.62 0.09 145);
+
   /* Токены для shadcn-совместимых компонентов (ElevenLabs UI Button,
-     DropdownMenu и т.п.) — смаплены на уже используемую в проекте
-     Tailwind-палитру neutral, чтобы новые компоненты не выбивались
-     из существующего вида. Только светлая тема, см. комментарий выше. */
-  --primary: #171717; /* neutral-900 */
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f5; /* neutral-100 */
-  --secondary-foreground: #171717;
-  --muted: #f5f5f5; /* neutral-100 */
-  --muted-foreground: #737373; /* neutral-500 */
-  --accent: #f5f5f5; /* neutral-100 */
-  --accent-foreground: #171717;
-  --destructive: #dc2626; /* red-600 */
-  --border: #d4d4d4; /* neutral-300 */
-  --input: #d4d4d4; /* neutral-300 */
-  --ring: #a3a3a3; /* neutral-400 */
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --radius: 0.5rem;
+     DropdownMenu и т.п.) — смаплены на палитру Науза выше. */
+  --primary: var(--clay);
+  --primary-foreground: oklch(0.98 0.01 60);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--surface);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.55 0.14 30);
+  --border: oklch(0.87 0.02 55);
+  --input: oklch(0.87 0.02 55);
+  --ring: oklch(0.62 0.09 45 / 0.45);
+  --popover: oklch(0.99 0.006 60);
+  --popover-foreground: var(--ink);
+  --radius: 0.625rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-clay: var(--clay);
+  --color-clay-hover: var(--clay-hover);
+  --color-clay-soft: var(--clay-soft);
+  --color-sage: var(--sage);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -51,12 +71,20 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Manrope — интерфейс (кнопки, статусы, подписи), Piazzolla — тексты
+     сказок/писем и заголовки экранов; переменные заданы в layout.tsx
+     через next/font/google. */
+  --font-sans: var(--font-manrope), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-piazzolla), Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: oklch(0.85 0.06 45);
 }

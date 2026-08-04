@@ -38,9 +38,9 @@ export function StoryReader({
 
   if (!voices.length) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="rounded-2xl border border-dashed border-border px-5 py-8 text-center text-sm text-ink-soft">
         Сначала нужен хотя бы один готовый голос —{" "}
-        <Link href="/voices/new" className="underline">
+        <Link href="/voices/new" className="text-clay underline">
           добавьте его здесь
         </Link>
         .
@@ -82,16 +82,16 @@ export function StoryReader({
       {existingVoices.map((v) => {
         const generation = generationByVoiceId[v.id];
         return (
-          <div key={v.id} className="flex flex-col gap-1">
-            <span className="text-xs text-neutral-500">Голос: {v.label}</span>
+          <div key={v.id} className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-ink-soft">Голос: {v.label}</span>
             <StoryPlayer storyId={`${storyId}:${v.id}`} audioUrl={generation.audioUrl} />
           </div>
         );
       })}
 
-      <div className="flex flex-wrap items-end gap-3 pt-1">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border px-4 py-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="voice-select" className="text-xs">
+          <Label htmlFor="voice-select" className="text-xs text-ink-soft">
             {existingVoices.length ? "Озвучить ещё одним голосом:" : "Чьим голосом озвучить?"}
           </Label>
           <Select
@@ -108,7 +108,7 @@ export function StoryReader({
           </Select>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="speed-select" className="text-xs">
+          <Label htmlFor="speed-select" className="text-xs text-ink-soft">
             Скорость речи
           </Label>
           <Select
@@ -124,18 +124,12 @@ export function StoryReader({
             ))}
           </Select>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          disabled={generating}
-          onClick={handleGenerate}
-          className="rounded-full"
-        >
+        <Button type="button" size="sm" disabled={generating} onClick={handleGenerate}>
           {generating ? "Озвучиваем..." : alreadyHasNextVoice ? "Переозвучить" : "Озвучить"}
         </Button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

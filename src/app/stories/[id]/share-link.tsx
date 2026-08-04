@@ -44,8 +44,8 @@ export function ShareLink({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm">
-      <p className="text-neutral-600">
+    <div className="flex flex-col gap-2.5 rounded-xl bg-surface px-5 py-4 text-sm">
+      <p className="text-ink-soft">
         Ссылка для проигрывания без входа в Науз — можно отправить ребёнку.
         Покажет все голоса, которыми вы озвучили эту запись.
       </p>
@@ -54,7 +54,7 @@ export function ShareLink({
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
+          className="flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
         />
         <Button type="button" size="sm" onClick={handleCopy}>
           {copied ? "Скопировано" : "Скопировать"}
@@ -65,7 +65,7 @@ export function ShareLink({
         variant="link"
         onClick={handleRegenerate}
         disabled={regenerating}
-        className="h-auto w-fit p-0 text-xs text-neutral-500 underline"
+        className="h-auto w-fit p-0 text-xs text-ink-soft underline"
       >
         {regenerating ? "Обновляем..." : "Обновить ссылку"}
       </Button>

@@ -38,6 +38,10 @@ export async function generateMetadata({
  * (книга, владелец) — см. миграцию 0020 и /api/books/[bookId]/share —
  * поэтому показывает записи ЛЮБЫХ голосов этого владельца (разные главы
  * могли озвучить разные его голоса), но никогда — чужие.
+ *
+ * Тёмный экран слушателя (см. "экран 6" в docs/Науз - дизайн.dc.html),
+ * ChapterPlayer в dark-варианте сохраняет ту же логику recap → пауза →
+ * глава, что и в приватном кабинете — меняется только оформление.
  */
 export default async function SharedBookPage({
   params,
@@ -125,43 +129,56 @@ export default async function SharedBookPage({
   }
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-8">
-      <h1 className="text-2xl font-semibold">{book.title}</h1>
+    <main className="flex flex-1 flex-col items-center bg-[oklch(0.22_0.02_40)] px-6 py-16">
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <h1 className="text-center font-serif text-2xl font-medium text-[oklch(0.93_0.02_60)]">
+          {book.title}
+        </h1>
 
-      <ul className="flex flex-col gap-4">
-        {(chapters ?? []).map((chapter) => {
-          const chapterGenerations = generationsByChapterId.get(chapter.id) ?? [];
-          return (
-            <li
-              key={chapter.id}
-              className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3"
-            >
-              <p className="text-sm font-medium text-neutral-900">
-                Глава {chapter.order_index}. {chapter.title}
-              </p>
-              <p className="whitespace-pre-wrap text-sm text-neutral-600">
-                {chapter.text_plain}
-              </p>
-              {chapterGenerations.length ? (
-                chapterGenerations.map((generation, i) => (
-                  <div key={i} className="flex flex-col gap-1">
-                    <span className="text-xs text-neutral-500">
-                      Голос: {generation.voiceLabel}
-                    </span>
-                    <ChapterPlayer
-                      recapAudioUrl={generation.recapAudioUrl}
-                      chapterAudioUrl={generation.audioUrl}
-                      recapDelaySeconds={generation.recapDelaySeconds}
-                    />
+        <ul className="flex flex-col gap-5">
+          {(chapters ?? []).map((chapter) => {
+            const chapterGenerations = generationsByChapterId.get(chapter.id) ?? [];
+            return (
+              <li
+                key={chapter.id}
+                className="flex flex-col gap-3 rounded-[24px] bg-[oklch(0.24_0.02_40)] px-6 py-6"
+              >
+                <div className="text-center">
+                  <div className="text-[12px] font-semibold tracking-wide text-[oklch(0.75_0.05_45)] uppercase">
+                    Глава {chapter.order_index}
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-neutral-400">Эта глава пока не озвучена.</p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                  <h2 className="mt-1 font-serif text-xl font-medium text-[oklch(0.93_0.02_60)]">
+                    {chapter.title}
+                  </h2>
+                </div>
+                {chapterGenerations.length ? (
+                  chapterGenerations.map((generation, i) => (
+                    <div key={i} className="flex flex-col gap-1.5">
+                      <span className="text-center text-xs text-[oklch(0.65_0.02_55)]">
+                        читает {generation.voiceLabel}
+                      </span>
+                      <ChapterPlayer
+                        dark
+                        recapAudioUrl={generation.recapAudioUrl}
+                        chapterAudioUrl={generation.audioUrl}
+                        recapDelaySeconds={generation.recapDelaySeconds}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-sm text-[oklch(0.65_0.02_55)]">
+                    Эта глава пока не озвучена.
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="pt-2 text-center text-[11px] tracking-wide text-[oklch(0.5_0.02_55)]">
+          НАУЗ
+        </div>
+      </div>
     </main>
   );
 }

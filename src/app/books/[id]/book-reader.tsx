@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { ChapterPlayer } from "./chapter-player";
 
 // Supabase-клиент отдаёт строки как есть (snake_case) — доменный тип
@@ -64,9 +65,9 @@ export function BookReader({
 
   if (!voices.length) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="rounded-2xl border border-dashed border-border px-5 py-8 text-center text-sm text-ink-soft">
         Сначала нужен хотя бы один готовый голос —{" "}
-        <Link href="/voices/new" className="underline">
+        <Link href="/voices/new" className="text-clay underline">
           добавьте его здесь
         </Link>
         .
@@ -127,9 +128,9 @@ export function BookReader({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-end gap-4 rounded-2xl border border-border px-5 py-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="speed-select">Скорость речи</Label>
+          <Label htmlFor="speed-select" className="text-xs text-ink-soft">Скорость речи</Label>
           <Select
             id="speed-select"
             value={speed}
@@ -143,7 +144,7 @@ export function BookReader({
           </Select>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="recap-delay">Пауза перед главой, сек</Label>
+          <Label htmlFor="recap-delay" className="text-xs text-ink-soft">Пауза перед главой, сек</Label>
           <Input
             id="recap-delay"
             type="number"
@@ -155,23 +156,35 @@ export function BookReader({
             className="w-24"
           />
         </div>
-        <label className="flex items-center gap-2 pb-2 text-sm">
-          <input
-            type="checkbox"
-            checked={includeRecap}
-            onChange={(e) => setIncludeRecap(e.target.checked)}
-          />
+        <button
+          type="button"
+          onClick={() => setIncludeRecap((v) => !v)}
+          className="flex items-center gap-2.5 pb-1.5 text-sm text-ink"
+        >
+          <span
+            className={cn(
+              "relative h-[26px] w-11 shrink-0 rounded-full transition-colors",
+              includeRecap ? "bg-clay" : "bg-border",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all",
+                includeRecap ? "left-[21px]" : "left-[3px]",
+              )}
+            />
+          </span>
           Вопросы по предыдущей главе
-        </label>
+        </button>
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-ink-soft">
         Эти настройки применяются при озвучке новой главы — уже готовые
         записи не меняются. Голос выбирается отдельно для каждой главы ниже
         — можно, например, читать одну главу мамой, другую папой.
       </p>
 
-      <div className="flex flex-col gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm">
-        <p className="text-neutral-600">
+      <div className="flex flex-col gap-2.5 rounded-xl bg-surface px-5 py-4 text-sm">
+        <p className="text-ink-soft">
           Ссылка на книгу без входа в Науз — покажет все главы, какими бы
           вашими голосами вы их ни озвучили.
         </p>
@@ -181,7 +194,7 @@ export function BookReader({
               readOnly
               value={shareUrl}
               onFocus={(e) => e.currentTarget.select()}
-              className="flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
+              className="flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
             />
             <Button type="button" size="sm" onClick={handleCopyShare}>
               {copied ? "Скопировано" : "Скопировать"}
@@ -201,7 +214,7 @@ export function BookReader({
         )}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <ul className="flex flex-col gap-4">
         {chapters
@@ -219,20 +232,20 @@ export function BookReader({
               <li
                 key={chapter.id}
                 id={`chapter-${chapter.order_index}`}
-                className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3 scroll-mt-6"
+                className="flex scroll-mt-6 flex-col gap-3 rounded-2xl border border-border px-5 py-5"
               >
-                <p className="text-sm font-medium text-neutral-900">
+                <p className="text-sm font-semibold text-ink">
                   Глава {chapter.order_index}. {chapter.title}
                 </p>
-                <p className="whitespace-pre-wrap text-sm text-neutral-600">
+                <p className="whitespace-pre-wrap text-sm text-ink-soft">
                   {chapter.text_plain}
                 </p>
 
                 {existingVoices.map((v) => {
                   const generation = generationByKey[`${chapter.id}:${v.id}`];
                   return (
-                    <div key={v.id} className="flex flex-col gap-1">
-                      <span className="text-xs text-neutral-500">Голос: {v.label}</span>
+                    <div key={v.id} className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-ink-soft">Голос: {v.label}</span>
                       <ChapterPlayer
                         recapAudioUrl={generation.recapAudioUrl}
                         chapterAudioUrl={generation.audioUrl}
@@ -243,7 +256,7 @@ export function BookReader({
                 })}
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Label htmlFor={`voice-select-${chapter.id}`} className="text-xs">
+                  <Label htmlFor={`voice-select-${chapter.id}`} className="text-xs text-ink-soft">
                     {existingVoices.length ? "Озвучить ещё одним голосом:" : "Кто прочитает?"}
                   </Label>
                   <Select
@@ -268,7 +281,6 @@ export function BookReader({
                     size="sm"
                     disabled={generating}
                     onClick={() => handleGenerate(chapter.id, nextVoiceId)}
-                    className="rounded-full"
                   >
                     {generating
                       ? "Озвучиваем..."

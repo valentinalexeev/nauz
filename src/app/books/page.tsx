@@ -1,39 +1,40 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Book } from "@/lib/types";
+import { AppShell } from "@/components/layout/app-shell";
 
 export default async function BooksPage() {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: books } = await supabase
     .from("books")
     .select("*")
     .order("title", { ascending: true });
 
   return (
-    <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-16 flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Книги по главам</h1>
-        <Link href="/dashboard" className="text-sm text-neutral-500 underline">
-          ← назад в дашборд
-        </Link>
-      </div>
+    <AppShell active="books" userEmail={user?.email ?? null}>
+      <h1 className="font-serif text-3xl font-medium text-ink">Книги по главам</h1>
 
       {!books?.length ? (
-        <p className="text-sm text-neutral-500">Пока нет ни одной книги.</p>
+        <p className="rounded-2xl border border-dashed border-border px-5 py-8 text-center text-sm text-ink-soft">
+          Пока нет ни одной книги.
+        </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {(books as Book[]).map((book) => (
-            <li
-              key={book.id}
-              className="rounded-lg border border-neutral-200 px-4 py-3"
-            >
-              <Link href={`/books/${book.id}`} className="underline">
+            <li key={book.id} className="rounded-2xl border border-border px-5 py-4">
+              <Link
+                href={`/books/${book.id}`}
+                className="font-semibold text-ink no-underline hover:underline"
+              >
                 {book.title}
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </AppShell>
   );
 }

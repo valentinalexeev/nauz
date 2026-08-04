@@ -1,10 +1,80 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice, Story } from "@/lib/types";
+import { AppShell } from "@/components/layout/app-shell";
 import { DeleteButton } from "./delete-button";
 import { RenameVoiceButton } from "@/components/voice/rename-voice-button";
 
-export default async function DashboardPage() {
+type DashboardTab = "voices" | "stories" | "books";
+
+const TAB_TITLE: Record<DashboardTab, string> = {
+  voices: "Голоса",
+  stories: "Тексты",
+  books: "Книги",
+};
+
+const TAB_SUBTITLE: Record<DashboardTab, string> = {
+  voices: "Голоса, которыми Науз читает вашим детям",
+  stories: "Ваши письма и сказки",
+  books: "Книги, доступные для озвучки",
+};
+
+function statusLabel(status: Voice["status"]) {
+  switch (status) {
+    case "awaiting_kyc":
+      return "ожидает подтверждения личности";
+    case "kyc_approved":
+      return "подтверждён, готовим слепок";
+    case "cloning":
+      return "создаём голос...";
+    case "ready":
+      return "готов";
+    case "failed":
+      return "ошибка";
+    case "revoked":
+      return "голос удалён";
+  }
+}
+
+function statusPillClass(status: Voice["status"]) {
+  switch (status) {
+    case "ready":
+      return "bg-sage text-white";
+    case "failed":
+      return "bg-destructive text-white";
+    case "revoked":
+      return "bg-border text-ink-soft";
+    default:
+      return "bg-clay text-white";
+  }
+}
+
+function statusSubtitle(status: Voice["status"]) {
+  switch (status) {
+    case "awaiting_kyc":
+      return "Ждём подтверждения личности";
+    case "kyc_approved":
+      return "Готов к записи образца голоса";
+    case "cloning":
+      return "Клонирование займёт пару минут";
+    case "ready":
+      return "Готов к использованию";
+    case "failed":
+      return "Не удалось создать голос из образца";
+    case "revoked":
+      return "Прежние записи остаются доступны";
+  }
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab: rawTab } = await searchParams;
+  const tab: DashboardTab =
+    rawTab === "stories" || rawTab === "books" ? rawTab : "voices";
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -41,6 +111,16 @@ export default async function DashboardPage() {
     chaptersByBookId.set(c.book_id, list);
   }
 
+  const chapterIds = (chapters ?? []).map((c) => c.id);
+  const { data: chapterGenerations } = chapterIds.length
+    ? await supabase
+        .from("book_chapter_generations")
+        .select("chapter_id")
+        .in("chapter_id", chapterIds)
+        .eq("status", "ready")
+    : { data: [] as { chapter_id: string }[] };
+  const voicedChapterIds = new Set((chapterGenerations ?? []).map((g) => g.chapter_id));
+
   // Голоса сказки узнаём через её генерации — у stories нет собственного
   // voice_id, связь идёт через audio_generations. Одна запись может быть
   // озвучена несколькими голосами (см. StoryReader) — собираем их все, а
@@ -49,119 +129,110 @@ export default async function DashboardPage() {
   const { data: generations } = storyIds.length
     ? await supabase
         .from("audio_generations")
-        .select("story_id, voice_id, created_at")
+        .select("story_id, voice_id, status, created_at")
         .in("story_id", storyIds)
         .order("created_at", { ascending: false })
-    : { data: [] as { story_id: string; voice_id: string; created_at: string }[] };
+    : {
+        data: [] as {
+          story_id: string;
+          voice_id: string;
+          status: string;
+          created_at: string;
+        }[],
+      };
 
   const voiceIdsByStoryId = new Map<string, string[]>();
+  const readyStoryIds = new Set<string>();
   for (const g of generations ?? []) {
     const list = voiceIdsByStoryId.get(g.story_id) ?? [];
     if (!list.includes(g.voice_id)) list.push(g.voice_id);
     voiceIdsByStoryId.set(g.story_id, list);
+    if (g.status === "ready") readyStoryIds.add(g.story_id);
   }
   const voiceById = new Map((voices as Voice[] | null ?? []).map((v) => [v.id, v]));
 
   return (
-    <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-16 flex flex-col gap-12">
-      <header className="flex items-center justify-between">
+    <AppShell active={tab} userEmail={user?.email ?? null}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Науз</h1>
-          <p className="text-sm text-neutral-500">{user?.email}</p>
+          <h1 className="font-serif text-3xl font-medium text-ink">
+            {TAB_TITLE[tab]}
+          </h1>
+          <p className="mt-1 text-sm text-ink-soft">{TAB_SUBTITLE[tab]}</p>
         </div>
-      </header>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Голоса</h2>
+        {tab === "voices" && (
           <Link
             href="/voices/new"
-            className="text-sm font-medium text-neutral-900 underline"
+            className="whitespace-nowrap rounded-lg bg-clay px-4 py-2.5 text-sm font-semibold text-white no-underline transition-colors hover:bg-clay-hover"
           >
-            + добавить голос
+            + Записать голос
           </Link>
-        </div>
-        {!voices?.length ? (
-          <p className="text-sm text-neutral-500">
-            Пока нет ни одного голоса. Добавьте первый — свой или, с их
-            согласия, близкого родственника.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {(voices as Voice[]).map((voice) => (
-              <li
-                key={voice.id}
-                className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between"
-              >
-                <Link href={`/voices/${voice.id}`} className="underline">
-                  {voice.label}
-                </Link>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-neutral-500">
-                    {statusLabel(voice.status)}
-                  </span>
-                  {voice.status !== "revoked" && (
-                    <>
-                      <RenameVoiceButton voiceId={voice.id} currentLabel={voice.label} />
-                      <DeleteButton
-                        endpoint={`/api/voices/${voice.id}`}
-                        confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
-                      />
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-medium">Книги по главам</h2>
-        {!books?.length ? (
-          <p className="text-sm text-neutral-500">Пока нет ни одной книги.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {books.map((book) => (
-              <li
-                key={book.id}
-                className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between gap-3"
-              >
-                <Link href={`/books/${book.id}`} className="underline">
-                  {book.title}
-                </Link>
-                <div className="flex items-center gap-2 text-xs text-neutral-500">
-                  <span>главы:</span>
-                  {(chaptersByBookId.get(book.id) ?? []).map((c) => (
-                    <Link
-                      key={c.id}
-                      href={`/books/${book.id}#chapter-${c.order_index}`}
-                      className="rounded-full border border-neutral-300 w-6 h-6 flex items-center justify-center hover:border-neutral-900 transition-colors"
-                    >
-                      {c.order_index}
-                    </Link>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Сказки и письма</h2>
+        {tab === "stories" && (
           <Link
             href="/stories/new"
-            className="text-sm font-medium text-neutral-900 underline"
+            className="whitespace-nowrap rounded-lg bg-clay px-4 py-2.5 text-sm font-semibold text-white no-underline transition-colors hover:bg-clay-hover"
           >
-            + новая запись
+            + Новая запись
           </Link>
-        </div>
-        {!stories?.length ? (
-          <p className="text-sm text-neutral-500">Записей пока нет.</p>
+        )}
+      </div>
+
+      {tab === "voices" &&
+        (!voices?.length ? (
+          <EmptyState>
+            Пока нет ни одного голоса. Добавьте первый — свой или, с их
+            согласия, близкого родственника.
+          </EmptyState>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(voices as Voice[]).map((voice) => (
+              <div
+                key={voice.id}
+                className="flex flex-col gap-3 rounded-2xl border border-border p-5"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-clay font-semibold text-white">
+                    {voice.label.slice(0, 1).toUpperCase()}
+                  </div>
+                  <Link
+                    href={`/voices/${voice.id}`}
+                    className="font-semibold text-ink no-underline hover:underline"
+                  >
+                    {voice.label}
+                  </Link>
+                </div>
+                <span
+                  className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusPillClass(voice.status)}`}
+                >
+                  {statusLabel(voice.status)}
+                </span>
+                <p className="text-xs text-ink-soft">{statusSubtitle(voice.status)}</p>
+                {voice.status !== "revoked" && (
+                  <div className="mt-auto flex items-center gap-3 pt-1">
+                    <RenameVoiceButton voiceId={voice.id} currentLabel={voice.label} />
+                    <DeleteButton
+                      endpoint={`/api/voices/${voice.id}`}
+                      confirmMessage={`Удалить голос «${voice.label}»? Это действие необратимо.`}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+            <Link
+              href="/voices/new"
+              className="flex min-h-[132px] items-center justify-center rounded-2xl border border-dashed border-border text-sm font-semibold text-ink-soft no-underline transition-colors hover:border-clay hover:text-clay"
+            >
+              + Записать новый голос
+            </Link>
+          </div>
+        ))}
+
+      {tab === "stories" &&
+        (!stories?.length ? (
+          <EmptyState>Записей пока нет.</EmptyState>
+        ) : (
+          <div className="flex flex-col gap-3">
             {(stories as Story[]).map((story) => {
               const storyVoices = (voiceIdsByStoryId.get(story.id) ?? [])
                 .map((voiceId) => voiceById.get(voiceId))
@@ -170,45 +241,104 @@ export default async function DashboardPage() {
                 ? storyVoices
                     .map((v) => v.label + (v.status === "revoked" ? " (удалён)" : ""))
                     .join(", ")
-                : "неизвестен";
+                : "не озвучена";
+              const isReady = readyStoryIds.has(story.id);
               return (
-              <li
-                key={story.id}
-                className="rounded-lg border border-neutral-200 px-4 py-3 flex items-center justify-between"
-              >
-                <div className="flex flex-col">
-                  <Link href={`/stories/${story.id}`} className="underline">
-                    {story.title}
-                  </Link>
-                  <span className="text-xs text-neutral-500">голос: {voiceLabel}</span>
+                <div
+                  key={story.id}
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-border px-5 py-4"
+                >
+                  <div className="flex min-w-0 items-center gap-3.5">
+                    <div
+                      className={`h-9 w-9 shrink-0 rounded-full ${isReady ? "bg-clay" : "bg-border"}`}
+                    />
+                    <div className="min-w-0">
+                      <Link
+                        href={`/stories/${story.id}`}
+                        className="font-semibold text-ink no-underline hover:underline"
+                      >
+                        {story.title}
+                      </Link>
+                      <p className="mt-0.5 truncate text-xs text-ink-soft">
+                        Голосом «{voiceLabel}»
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      className={
+                        isReady
+                          ? "rounded-full bg-sage px-2.5 py-1 text-[11px] font-semibold text-white"
+                          : "rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-ink-soft"
+                      }
+                    >
+                      {isReady ? "готово" : "не озвучено"}
+                    </span>
+                    <DeleteButton
+                      endpoint={`/api/stories/${story.id}`}
+                      confirmMessage={`Удалить запись «${story.title}»? Это действие необратимо.`}
+                    />
+                  </div>
                 </div>
-                <DeleteButton
-                  endpoint={`/api/stories/${story.id}`}
-                  confirmMessage={`Удалить запись «${story.title}»? Это действие необратимо.`}
-                />
-              </li>
               );
             })}
-          </ul>
-        )}
-      </section>
-    </main>
+            <Link
+              href="/stories/new"
+              className="rounded-2xl border border-dashed border-border py-4 text-center text-sm font-semibold text-ink-soft no-underline transition-colors hover:border-clay hover:text-clay"
+            >
+              + Новое письмо или сказка
+            </Link>
+          </div>
+        ))}
+
+      {tab === "books" &&
+        (!books?.length ? (
+          <EmptyState>Пока нет ни одной книги.</EmptyState>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {books.map((book) => {
+              const bookChapters = chaptersByBookId.get(book.id) ?? [];
+              const voicedCount = bookChapters.filter((c) => voicedChapterIds.has(c.id)).length;
+              const total = bookChapters.length;
+              const progress = total ? Math.round((voicedCount / total) * 100) : 0;
+              return (
+                <Link
+                  key={book.id}
+                  href={`/books/${book.id}`}
+                  className="flex flex-col gap-3.5 rounded-2xl border border-border p-5 no-underline transition-colors hover:border-clay"
+                >
+                  <div
+                    className="h-24 w-full rounded-xl"
+                    style={{
+                      background:
+                        "repeating-linear-gradient(45deg, var(--surface), var(--surface) 8px, oklch(0.90 0.016 55) 8px, oklch(0.90 0.016 55) 16px)",
+                    }}
+                  />
+                  <div>
+                    <p className="font-semibold text-ink">{book.title}</p>
+                    <p className="mt-1 text-xs text-ink-soft">
+                      {voicedCount} из {total} {total === 1 ? "главы" : "глав"} озвучено
+                    </p>
+                  </div>
+                  <div className="h-1 w-full rounded-full bg-border">
+                    <div
+                      className="h-1 rounded-full bg-clay"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+    </AppShell>
   );
 }
 
-function statusLabel(status: Voice["status"]) {
-  switch (status) {
-    case "awaiting_kyc":
-      return "ожидает подтверждения личности";
-    case "kyc_approved":
-      return "подтверждён, готовим слепок";
-    case "cloning":
-      return "создаём голос...";
-    case "ready":
-      return "готов";
-    case "failed":
-      return "ошибка";
-    case "revoked":
-      return "голос удалён";
-  }
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-2xl border border-dashed border-border px-5 py-8 text-center text-sm text-ink-soft">
+      {children}
+    </p>
+  );
 }
