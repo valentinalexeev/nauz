@@ -18,6 +18,7 @@ export interface RawBookChapter {
   book_id: string;
   order_index: number;
   title: string;
+  text_plain: string;
 }
 
 export function BookReader({
@@ -118,6 +119,9 @@ export function BookReader({
               >
                 <p className="text-sm font-medium text-neutral-900">
                   Глава {chapter.order_index}. {chapter.title}
+                </p>
+                <p className="whitespace-pre-wrap text-sm text-neutral-600">
+                  {chapter.text_plain}
                 </p>
                 {audioUrl ? (
                   <StoryPlayer storyId={chapter.id} audioUrl={audioUrl} />
