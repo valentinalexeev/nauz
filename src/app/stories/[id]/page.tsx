@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StoryPlayer } from "./story-player";
+import type { Voice } from "@/lib/types";
+import { StoryReader } from "./story-reader";
 import { ShareLink } from "./share-link";
 
 export default async function StoryPage({
@@ -20,20 +21,33 @@ export default async function StoryPage({
 
   if (!story) notFound();
 
-  const { data: generation } = await supabase
+  const { data: voices } = await supabase
+    .from("voices")
+    .select("*")
+    .eq("status", "ready");
+
+  const { data: generations } = await supabase
     .from("audio_generations")
     .select("*")
     .eq("story_id", id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .order("created_at", { ascending: false });
 
-  let audioUrl: string | null = null;
-  if (generation?.audio_url) {
+  const anyProcessing = (generations ?? []).some((g) => g.status === "processing");
+  const anyFailed = (generations ?? []).some((g) => g.status === "failed");
+
+  // Несколько голосов могут озвучить одну и ту же запись — берём самую
+  // свежую готовую генерацию на каждый голос, а не только последнюю в
+  // принципе (как раньше).
+  const generationByVoiceId: Record<string, { audioUrl: string }> = {};
+  for (const g of generations ?? []) {
+    if (generationByVoiceId[g.voice_id] || g.status !== "ready" || !g.audio_url) continue;
+
     const { data } = await supabase.storage
       .from("audio-generations")
-      .createSignedUrl(generation.audio_url, 60 * 60);
-    audioUrl = data?.signedUrl ?? null;
+      .createSignedUrl(g.audio_url, 60 * 60);
+    if (!data?.signedUrl) continue;
+
+    generationByVoiceId[g.voice_id] = { audioUrl: data.signedUrl };
   }
 
   return (
@@ -45,17 +59,22 @@ export default async function StoryPage({
         </Link>
       </div>
 
-      {generation?.status === "processing" && (
+      {anyProcessing && (
         <p className="text-sm text-neutral-500">Готовим аудио...</p>
       )}
-      {generation?.status === "failed" && (
+      {anyFailed && (
         <p className="text-sm text-red-600">
-          Не удалось сгенерировать аудио, попробуйте ещё раз.
+          Не удалось сгенерировать аудио одним из голосов, попробуйте ещё раз.
         </p>
       )}
-      {audioUrl && <StoryPlayer storyId={story.id} audioUrl={audioUrl} />}
 
-      {audioUrl && (
+      <StoryReader
+        storyId={story.id}
+        voices={(voices as Voice[]) ?? []}
+        generationByVoiceId={generationByVoiceId}
+      />
+
+      {Object.keys(generationByVoiceId).length > 0 && (
         <ShareLink
           storyId={story.id}
           baseUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}

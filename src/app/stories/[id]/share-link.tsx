@@ -46,7 +46,8 @@ export function ShareLink({
   return (
     <div className="flex flex-col gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm">
       <p className="text-neutral-600">
-        Ссылка для проигрывания без входа в Науз — можно отправить ребёнку:
+        Ссылка для проигрывания без входа в Науз — можно отправить ребёнку.
+        Покажет все голоса, которыми вы озвучили эту запись.
       </p>
       <div className="flex items-center gap-2">
         <input

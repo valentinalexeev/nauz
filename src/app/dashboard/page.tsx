@@ -41,8 +41,10 @@ export default async function DashboardPage() {
     chaptersByBookId.set(c.book_id, list);
   }
 
-  // Голос сказки узнаём через её последнюю генерацию — у stories нет
-  // собственного voice_id, связь идёт через audio_generations.
+  // Голоса сказки узнаём через её генерации — у stories нет собственного
+  // voice_id, связь идёт через audio_generations. Одна запись может быть
+  // озвучена несколькими голосами (см. StoryReader) — собираем их все, а
+  // не только самый свежий.
   const storyIds = (stories ?? []).map((s) => s.id);
   const { data: generations } = storyIds.length
     ? await supabase
@@ -52,9 +54,11 @@ export default async function DashboardPage() {
         .order("created_at", { ascending: false })
     : { data: [] as { story_id: string; voice_id: string; created_at: string }[] };
 
-  const voiceIdByStoryId = new Map<string, string>();
+  const voiceIdsByStoryId = new Map<string, string[]>();
   for (const g of generations ?? []) {
-    if (!voiceIdByStoryId.has(g.story_id)) voiceIdByStoryId.set(g.story_id, g.voice_id);
+    const list = voiceIdsByStoryId.get(g.story_id) ?? [];
+    if (!list.includes(g.voice_id)) list.push(g.voice_id);
+    voiceIdsByStoryId.set(g.story_id, list);
   }
   const voiceById = new Map((voices as Voice[] | null ?? []).map((v) => [v.id, v]));
 
@@ -159,7 +163,14 @@ export default async function DashboardPage() {
         ) : (
           <ul className="flex flex-col gap-2">
             {(stories as Story[]).map((story) => {
-              const voice = voiceById.get(voiceIdByStoryId.get(story.id) ?? "");
+              const storyVoices = (voiceIdsByStoryId.get(story.id) ?? [])
+                .map((voiceId) => voiceById.get(voiceId))
+                .filter((v): v is Voice => !!v);
+              const voiceLabel = storyVoices.length
+                ? storyVoices
+                    .map((v) => v.label + (v.status === "revoked" ? " (удалён)" : ""))
+                    .join(", ")
+                : "неизвестен";
               return (
               <li
                 key={story.id}
@@ -169,10 +180,7 @@ export default async function DashboardPage() {
                   <Link href={`/stories/${story.id}`} className="underline">
                     {story.title}
                   </Link>
-                  <span className="text-xs text-neutral-500">
-                    голос: {voice?.label ?? "неизвестен"}
-                    {voice?.status === "revoked" && " (удалён)"}
-                  </span>
+                  <span className="text-xs text-neutral-500">голос: {voiceLabel}</span>
                 </div>
                 <DeleteButton
                   endpoint={`/api/stories/${story.id}`}
