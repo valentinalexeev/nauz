@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Book, Voice } from "@/lib/types";
 import { BookReader, type RawBookChapter } from "./book-reader";
+import { BookShareLink } from "./book-share-link";
 
 export default async function BookPage({
   params,
@@ -87,6 +88,10 @@ export default async function BookPage({
           ← ко всем книгам
         </Link>
       </div>
+
+      <BookShareLink
+        url={`${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/b/${book.share_token}`}
+      />
 
       <BookReader
         bookId={id}
