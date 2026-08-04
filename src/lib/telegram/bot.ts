@@ -653,7 +653,7 @@ async function handleBookCallback(
       // Уже озвученную этим голосом главу не генерируем заново.
       const { data: existing } = await admin
         .from("book_chapter_generations")
-        .select("audio_url")
+        .select("audio_url, recap_audio_url")
         .eq("chapter_id", chapterId)
         .eq("voice_id", voiceId)
         .eq("status", "ready")
@@ -662,6 +662,7 @@ async function handleBookCallback(
         .single();
 
       let audioUrl = existing?.audio_url ?? null;
+      let recapAudioUrl = existing?.recap_audio_url ?? null;
 
       if (!audioUrl) {
         await withChatAction(chatId, "upload_voice", () =>
@@ -669,7 +670,7 @@ async function handleBookCallback(
         );
         const { data: fresh } = await admin
           .from("book_chapter_generations")
-          .select("audio_url")
+          .select("audio_url, recap_audio_url")
           .eq("chapter_id", chapterId)
           .eq("voice_id", voiceId)
           .eq("status", "ready")
@@ -677,20 +678,41 @@ async function handleBookCallback(
           .limit(1)
           .single();
         audioUrl = fresh?.audio_url ?? null;
+        recapAudioUrl = fresh?.recap_audio_url ?? null;
       }
 
-      if (audioUrl) {
-        const { data: fileData } = await admin.storage
+      if (!audioUrl) {
+        await sendMessage({ chatId, text: "Не удалось получить аудио главы." });
+        return;
+      }
+
+      // Recap отдельным сообщением ДО главы — пока родитель с ребёнком
+      // обсуждают вопросы и не открывают следующее сообщение, это и есть
+      // пауза, без необходимости что-то ждать внутри одного файла.
+      if (recapAudioUrl) {
+        const { data: recapFile } = await admin.storage
           .from("audio-generations")
-          .download(audioUrl);
-        if (fileData) {
+          .download(recapAudioUrl);
+        if (recapFile) {
           await sendAudio({
             chatId,
-            audio: await fileData.arrayBuffer(),
-            filename: "chapter.mp3",
+            audio: await recapFile.arrayBuffer(),
+            filename: "recap.mp3",
+            caption: "Вопросы по предыдущей главе — обсудите, затем слушайте продолжение ниже.",
           });
-          return;
         }
+      }
+
+      const { data: fileData } = await admin.storage
+        .from("audio-generations")
+        .download(audioUrl);
+      if (fileData) {
+        await sendAudio({
+          chatId,
+          audio: await fileData.arrayBuffer(),
+          filename: "chapter.mp3",
+        });
+        return;
       }
 
       await sendMessage({ chatId, text: "Не удалось получить аудио главы." });

@@ -7,8 +7,9 @@ import type { Voice } from "@/lib/types";
 import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StoryPlayer } from "@/app/stories/[id]/story-player";
+import { ChapterPlayer } from "./chapter-player";
 
 // Supabase-клиент отдаёт строки как есть (snake_case) — доменный тип
 // BookChapter в src/lib/types.ts camelCase и для приведения типов из
@@ -21,20 +22,28 @@ export interface RawBookChapter {
   text_plain: string;
 }
 
+export interface ChapterGeneration {
+  audioUrl: string;
+  recapAudioUrl: string | null;
+  recapDelaySeconds: number;
+}
+
 export function BookReader({
   bookId,
   chapters,
   voices,
-  audioUrlByKey,
+  generationByKey,
 }: {
   bookId: string;
   chapters: RawBookChapter[];
   voices: Voice[];
-  audioUrlByKey: Record<string, string>;
+  generationByKey: Record<string, ChapterGeneration>;
 }) {
   const router = useRouter();
   const [voiceId, setVoiceId] = useState(voices[0]?.id ?? "");
   const [speed, setSpeed] = useState(1.0);
+  const [includeRecap, setIncludeRecap] = useState(true);
+  const [recapDelaySeconds, setRecapDelaySeconds] = useState(5);
   const [generatingChapterId, setGeneratingChapterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +66,7 @@ export function BookReader({
     const res = await fetch(`/api/books/${bookId}/chapters/${chapterId}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voiceId, speed }),
+      body: JSON.stringify({ voiceId, speed, includeRecap, recapDelaySeconds }),
     });
 
     if (!res.ok) {
@@ -73,7 +82,7 @@ export function BookReader({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="voice-select">Чьим голосом читать?</Label>
           <Select
@@ -102,7 +111,32 @@ export function BookReader({
             ))}
           </Select>
         </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="recap-delay">Пауза перед главой, сек</Label>
+          <Input
+            id="recap-delay"
+            type="number"
+            min={0}
+            max={60}
+            disabled={!includeRecap}
+            value={recapDelaySeconds}
+            onChange={(e) => setRecapDelaySeconds(Number(e.target.value))}
+            className="w-24"
+          />
+        </div>
+        <label className="flex items-center gap-2 pb-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeRecap}
+            onChange={(e) => setIncludeRecap(e.target.checked)}
+          />
+          Вопросы по предыдущей главе
+        </label>
       </div>
+      <p className="text-xs text-neutral-500">
+        Настройки применяются при озвучке новой главы — уже готовые записи
+        не меняются.
+      </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -110,7 +144,7 @@ export function BookReader({
         {chapters
           .sort((a, b) => a.order_index - b.order_index)
           .map((chapter) => {
-            const audioUrl = audioUrlByKey[`${chapter.id}:${voiceId}`];
+            const generation = generationByKey[`${chapter.id}:${voiceId}`];
             const generating = generatingChapterId === chapter.id;
             return (
               <li
@@ -124,8 +158,12 @@ export function BookReader({
                 <p className="whitespace-pre-wrap text-sm text-neutral-600">
                   {chapter.text_plain}
                 </p>
-                {audioUrl ? (
-                  <StoryPlayer storyId={chapter.id} audioUrl={audioUrl} />
+                {generation ? (
+                  <ChapterPlayer
+                    recapAudioUrl={generation.recapAudioUrl}
+                    chapterAudioUrl={generation.audioUrl}
+                    recapDelaySeconds={generation.recapDelaySeconds}
+                  />
                 ) : (
                   <Button
                     type="button"

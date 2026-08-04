@@ -39,17 +39,44 @@ export default async function BookPage({
         .in("chapter_id", chapterIds)
         .eq("status", "ready")
         .order("created_at", { ascending: false })
-    : { data: [] as { id: string; chapter_id: string; voice_id: string; audio_url: string | null }[] };
+    : {
+        data: [] as {
+          id: string;
+          chapter_id: string;
+          voice_id: string;
+          audio_url: string | null;
+          recap_audio_url: string | null;
+          recap_delay_seconds: number;
+        }[],
+      };
 
   // Последняя (самая свежая) готовая генерация на пару глава+голос.
-  const audioUrlByKey: Record<string, string> = {};
+  const generationByKey: Record<
+    string,
+    { audioUrl: string; recapAudioUrl: string | null; recapDelaySeconds: number }
+  > = {};
   for (const g of generations ?? []) {
     const key = `${g.chapter_id}:${g.voice_id}`;
-    if (audioUrlByKey[key] || !g.audio_url) continue;
-    const { data } = await supabase.storage
+    if (generationByKey[key] || !g.audio_url) continue;
+
+    const { data: audioSigned } = await supabase.storage
       .from("audio-generations")
       .createSignedUrl(g.audio_url, 60 * 60);
-    if (data?.signedUrl) audioUrlByKey[key] = data.signedUrl;
+    if (!audioSigned?.signedUrl) continue;
+
+    let recapAudioUrl: string | null = null;
+    if (g.recap_audio_url) {
+      const { data: recapSigned } = await supabase.storage
+        .from("audio-generations")
+        .createSignedUrl(g.recap_audio_url, 60 * 60);
+      recapAudioUrl = recapSigned?.signedUrl ?? null;
+    }
+
+    generationByKey[key] = {
+      audioUrl: audioSigned.signedUrl,
+      recapAudioUrl,
+      recapDelaySeconds: g.recap_delay_seconds,
+    };
   }
 
   return (
@@ -65,7 +92,7 @@ export default async function BookPage({
         bookId={id}
         chapters={(chapters as RawBookChapter[]) ?? []}
         voices={(voices as Voice[]) ?? []}
-        audioUrlByKey={audioUrlByKey}
+        generationByKey={generationByKey}
       />
     </main>
   );

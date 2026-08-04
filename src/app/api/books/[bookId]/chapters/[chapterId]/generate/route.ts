@@ -16,9 +16,11 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { voiceId, speed } = (await request.json()) as {
+  const { voiceId, speed, includeRecap, recapDelaySeconds } = (await request.json()) as {
     voiceId: string;
     speed?: number;
+    includeRecap?: boolean;
+    recapDelaySeconds?: number;
   };
 
   try {
@@ -27,13 +29,18 @@ export async function POST(
       voiceId,
       chapterId,
       speed,
+      includeRecap,
+      recapDelaySeconds,
     });
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "generation failed";
-    const status = ["voice not ready", "chapter not found", "invalid speed"].includes(
-      message,
-    )
+    const status = [
+      "voice not ready",
+      "chapter not found",
+      "invalid speed",
+      "invalid recap delay",
+    ].includes(message)
       ? 400
       : 500;
     return NextResponse.json({ error: message }, { status });
