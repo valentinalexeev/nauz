@@ -120,9 +120,13 @@ function TabHeader({ tab }: { tab: DashboardTab }) {
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 async function VoicesTab({ supabase }: { supabase: Supabase }) {
+  // Удалённые (revoked) голоса в списке не показываем — сам голос больше
+  // не существует и переозвучить им нельзя, только его прежние записи
+  // остаются доступны (и подписаны "(удалён)") в текстах и книгах.
   const { data: voices } = await supabase
     .from("voices")
     .select("*")
+    .neq("status", "revoked")
     .order("created_at", { ascending: false });
 
   if (!voices?.length) {
