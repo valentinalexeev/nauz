@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Book, Voice } from "@/lib/types";
-import { AppShell } from "@/components/layout/app-shell";
 import { BookReader, type RawBookChapter } from "./book-reader";
 
 export default async function BookPage({
@@ -11,9 +10,6 @@ export default async function BookPage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: book } = await supabase
     .from("books")
@@ -54,36 +50,50 @@ export default async function BookPage({
       };
 
   // Последняя (самая свежая) готовая генерация на пару глава+голос.
+  const latestReady = new Map<
+    string,
+    { audioPath: string; recapPath: string | null; recapDelaySeconds: number }
+  >();
+  for (const g of generations ?? []) {
+    const key = `${g.chapter_id}:${g.voice_id}`;
+    if (latestReady.has(key) || !g.audio_url) continue;
+    latestReady.set(key, {
+      audioPath: g.audio_url,
+      recapPath: g.recap_audio_url,
+      recapDelaySeconds: g.recap_delay_seconds,
+    });
+  }
+
+  // Один batch-запрос на все подписанные ссылки (главы + recap) вместо до
+  // двух последовательных createSignedUrl() на каждую готовую генерацию —
+  // при нескольких главах/голосах это раньше означало десяток round-trip'ов
+  // подряд и заметно тормозило открытие книги.
+  const allPaths = [
+    ...new Set(
+      [...latestReady.values()].flatMap((v) => [v.audioPath, v.recapPath].filter((p): p is string => !!p)),
+    ),
+  ];
+  const { data: signedUrls } = allPaths.length
+    ? await supabase.storage.from("audio-generations").createSignedUrls(allPaths, 60 * 60)
+    : { data: [] as { path: string; signedUrl: string }[] };
+  const signedUrlByPath = new Map((signedUrls ?? []).map((s) => [s.path, s.signedUrl]));
+
   const generationByKey: Record<
     string,
     { audioUrl: string; recapAudioUrl: string | null; recapDelaySeconds: number }
   > = {};
-  for (const g of generations ?? []) {
-    const key = `${g.chapter_id}:${g.voice_id}`;
-    if (generationByKey[key] || !g.audio_url) continue;
-
-    const { data: audioSigned } = await supabase.storage
-      .from("audio-generations")
-      .createSignedUrl(g.audio_url, 60 * 60);
-    if (!audioSigned?.signedUrl) continue;
-
-    let recapAudioUrl: string | null = null;
-    if (g.recap_audio_url) {
-      const { data: recapSigned } = await supabase.storage
-        .from("audio-generations")
-        .createSignedUrl(g.recap_audio_url, 60 * 60);
-      recapAudioUrl = recapSigned?.signedUrl ?? null;
-    }
-
+  for (const [key, v] of latestReady) {
+    const audioUrl = signedUrlByPath.get(v.audioPath);
+    if (!audioUrl) continue;
     generationByKey[key] = {
-      audioUrl: audioSigned.signedUrl,
-      recapAudioUrl,
-      recapDelaySeconds: g.recap_delay_seconds,
+      audioUrl,
+      recapAudioUrl: v.recapPath ? (signedUrlByPath.get(v.recapPath) ?? null) : null,
+      recapDelaySeconds: v.recapDelaySeconds,
     };
   }
 
   return (
-    <AppShell active="books" userEmail={user?.email ?? null}>
+    <>
       <h1 className="font-serif text-3xl font-medium text-ink">{(book as Book).title}</h1>
 
       <BookReader
@@ -93,6 +103,6 @@ export default async function BookPage({
         generationByKey={generationByKey}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
       />
-    </AppShell>
+    </>
   );
 }

@@ -60,20 +60,28 @@ export default async function SharedStoryPage({
     : { data: [] as { id: string; label: string }[] };
   const voiceLabelById = new Map((voices ?? []).map((v) => [v.id, v.label]));
 
-  const versions: { voiceLabel: string; audioUrl: string }[] = [];
-  const seenVoice = new Set<string>();
+  const latestReadyByVoiceId = new Map<string, string>();
   for (const g of generations ?? []) {
-    if (seenVoice.has(g.voice_id) || !g.audio_url) continue;
-    seenVoice.add(g.voice_id);
+    if (latestReadyByVoiceId.has(g.voice_id) || !g.audio_url) continue;
+    latestReadyByVoiceId.set(g.voice_id, g.audio_url);
+  }
 
-    const { data } = await admin.storage
-      .from("audio-generations")
-      .createSignedUrl(g.audio_url, 60 * 60);
-    if (!data?.signedUrl) continue;
+  // Один batch-запрос на все подписанные ссылки вместо N последовательных
+  // createSignedUrl() на каждый голос.
+  const { data: signedUrls } = latestReadyByVoiceId.size
+    ? await admin.storage
+        .from("audio-generations")
+        .createSignedUrls([...latestReadyByVoiceId.values()], 60 * 60)
+    : { data: [] as { path: string; signedUrl: string }[] };
+  const signedUrlByPath = new Map((signedUrls ?? []).map((s) => [s.path, s.signedUrl]));
 
+  const versions: { voiceLabel: string; audioUrl: string }[] = [];
+  for (const [voiceId, path] of latestReadyByVoiceId) {
+    const audioUrl = signedUrlByPath.get(path);
+    if (!audioUrl) continue;
     versions.push({
-      voiceLabel: voiceLabelById.get(g.voice_id) ?? "неизвестный голос",
-      audioUrl: data.signedUrl,
+      voiceLabel: voiceLabelById.get(voiceId) ?? "неизвестный голос",
+      audioUrl,
     });
   }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { ChapterPlayer } from "@/app/books/[id]/chapter-player";
+import { ChapterPlayer } from "@/app/(app)/books/[id]/chapter-player";
 
 async function resolveLink(token: string) {
   const admin = createSupabaseAdminClient();
@@ -95,37 +95,50 @@ export default async function SharedBookPage({
 
   // Несколько голосов могут озвучить одну и ту же главу — держим все
   // готовые версии (последнюю на каждый голос), а не только одну.
+  const latestReady = new Map<
+    string,
+    { chapterId: string; voiceId: string; audioPath: string; recapPath: string | null; recapDelaySeconds: number }
+  >();
+  for (const g of generations ?? []) {
+    const key = `${g.chapter_id}:${g.voice_id}`;
+    if (latestReady.has(key) || !g.audio_url) continue;
+    latestReady.set(key, {
+      chapterId: g.chapter_id,
+      voiceId: g.voice_id,
+      audioPath: g.audio_url,
+      recapPath: g.recap_audio_url,
+      recapDelaySeconds: g.recap_delay_seconds,
+    });
+  }
+
+  // Один batch-запрос на все подписанные ссылки (главы + recap) вместо до
+  // двух последовательных createSignedUrl() на каждую готовую генерацию.
+  const allPaths = [
+    ...new Set(
+      [...latestReady.values()].flatMap((v) => [v.audioPath, v.recapPath].filter((p): p is string => !!p)),
+    ),
+  ];
+  const { data: signedUrls } = allPaths.length
+    ? await admin.storage.from("audio-generations").createSignedUrls(allPaths, 60 * 60)
+    : { data: [] as { path: string; signedUrl: string }[] };
+  const signedUrlByPath = new Map((signedUrls ?? []).map((s) => [s.path, s.signedUrl]));
+
   const generationsByChapterId = new Map<
     string,
     { voiceLabel: string; audioUrl: string; recapAudioUrl: string | null; recapDelaySeconds: number }[]
   >();
-  const seenChapterVoice = new Set<string>();
-  for (const g of generations ?? []) {
-    const key = `${g.chapter_id}:${g.voice_id}`;
-    if (seenChapterVoice.has(key) || !g.audio_url) continue;
-    seenChapterVoice.add(key);
+  for (const v of latestReady.values()) {
+    const audioUrl = signedUrlByPath.get(v.audioPath);
+    if (!audioUrl) continue;
 
-    const { data: audioSigned } = await admin.storage
-      .from("audio-generations")
-      .createSignedUrl(g.audio_url, 60 * 60);
-    if (!audioSigned?.signedUrl) continue;
-
-    let recapAudioUrl: string | null = null;
-    if (g.recap_audio_url) {
-      const { data: recapSigned } = await admin.storage
-        .from("audio-generations")
-        .createSignedUrl(g.recap_audio_url, 60 * 60);
-      recapAudioUrl = recapSigned?.signedUrl ?? null;
-    }
-
-    const list = generationsByChapterId.get(g.chapter_id) ?? [];
+    const list = generationsByChapterId.get(v.chapterId) ?? [];
     list.push({
-      voiceLabel: voiceLabelById.get(g.voice_id) ?? "неизвестный голос",
-      audioUrl: audioSigned.signedUrl,
-      recapAudioUrl,
-      recapDelaySeconds: g.recap_delay_seconds,
+      voiceLabel: voiceLabelById.get(v.voiceId) ?? "неизвестный голос",
+      audioUrl,
+      recapAudioUrl: v.recapPath ? (signedUrlByPath.get(v.recapPath) ?? null) : null,
+      recapDelaySeconds: v.recapDelaySeconds,
     });
-    generationsByChapterId.set(g.chapter_id, list);
+    generationsByChapterId.set(v.chapterId, list);
   }
 
   return (

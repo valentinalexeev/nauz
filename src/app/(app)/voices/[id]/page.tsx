@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Voice, KycStatus } from "@/lib/types";
-import { AppShell } from "@/components/layout/app-shell";
 import { VoiceRecorder } from "./voice-recorder";
 import { AutoRefresh } from "./auto-refresh";
 import { RenameVoiceButton } from "@/components/voice/rename-voice-button";
@@ -14,9 +13,6 @@ export default async function VoicePage({
 }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: voice } = await supabase
     .from("voices")
@@ -39,7 +35,7 @@ export default async function VoicePage({
   }
 
   return (
-    <AppShell active="voices" userEmail={user?.email ?? null}>
+    <>
       <div>
         <div className="flex items-center gap-3">
           <h1 className="font-serif text-3xl font-medium text-ink">
@@ -52,7 +48,7 @@ export default async function VoicePage({
       </div>
 
       <VoiceStatusPanel voice={voice as Voice} kycStatus={kycStatus} />
-    </AppShell>
+    </>
   );
 }
 

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Voice, StoryKind } from "@/lib/types";
 import { SPEED_OPTIONS } from "@/lib/stories/speed-options";
-import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +24,6 @@ interface RawStoryTemplate {
 
 export default function NewStoryPage() {
   const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [templates, setTemplates] = useState<RawStoryTemplate[]>([]);
   const [voiceId, setVoiceId] = useState("");
@@ -39,7 +37,6 @@ export default function NewStoryPage() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
     supabase
       .from("voices")
       .select("*")
@@ -83,7 +80,7 @@ export default function NewStoryPage() {
   const selectedTemplate = templates.find((t) => t.id === templateId);
 
   return (
-    <AppShell active="stories" userEmail={userEmail}>
+    <>
       <h1 className="font-serif text-3xl font-medium text-ink">
         Новая сказка или письмо
       </h1>
@@ -217,7 +214,7 @@ export default function NewStoryPage() {
           </div>
         </form>
       )}
-    </AppShell>
+    </>
   );
 }
 

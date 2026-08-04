@@ -1,35 +1,56 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export type AppShellSection = "voices" | "stories" | "books";
+type AppShellSection = "voices" | "stories" | "books" | null;
 
-const TABS: { section: AppShellSection; label: string }[] = [
+const TABS: { section: Exclude<AppShellSection, null>; label: string }[] = [
   { section: "voices", label: "Голоса" },
   { section: "stories", label: "Тексты" },
   { section: "books", label: "Книги" },
 ];
 
+function useActiveSection(): AppShellSection {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  if (pathname.startsWith("/voices")) return "voices";
+  if (pathname.startsWith("/stories")) return "stories";
+  if (pathname.startsWith("/books")) return "books";
+  if (pathname.startsWith("/dashboard")) {
+    const tab = searchParams.get("tab");
+    if (tab === "stories" || tab === "books") return tab;
+    return "voices";
+  }
+  return null;
+}
+
 /**
- * Общий каркас кабинета — сайдбар с разделами (Голоса/Тексты/Книги) вместо
- * повторяющегося "← назад в дашборд" на каждой странице (см. "экран 3" в
- * docs/Науз - дизайн.dc.html). Данные и запросы страниц не меняются —
- * это только разметка вокруг них; каждая авторизованная страница передаёт
- * свой раздел в `active`, чтобы соответствующая вкладка подсвечивалась,
- * даже когда пользователь на детальной странице (/voices/[id] и т.п.), а
- * не на самом /dashboard.
+ * Общий каркас кабинета — сайдбар с разделами (Голоса/Тексты/Книги),
+ * подключается ОДИН раз в src/app/(app)/layout.tsx и остаётся смонтированным
+ * между переходами внутри кабинета (Next.js переиспользует layout, меняет
+ * только содержимое <main>) — раньше каждая страница рендерила свой
+ * собственный AppShell, из-за чего сайдбар пересоздавался при каждом
+ * переходе (мигал/пропадал на время загрузки новой страницы).
+ *
+ * Активная вкладка определяется на клиенте по текущему пути
+ * (usePathname/useSearchParams), а не передаётся пропом — иначе каждая
+ * авторизованная страница должна была бы сама знать, в каком она разделе.
  */
 export function AppShell({
-  active,
   userEmail,
   children,
 }: {
-  active: AppShellSection | null;
   userEmail: string | null;
   children: React.ReactNode;
 }) {
+  const active = useActiveSection();
+
   return (
     <div className="flex min-h-screen w-full">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-paper px-5 py-8">
+      <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-border bg-paper px-5 py-8">
         <Link
           href="/dashboard"
           className="mb-9 px-2 font-serif text-xl font-semibold text-ink no-underline"

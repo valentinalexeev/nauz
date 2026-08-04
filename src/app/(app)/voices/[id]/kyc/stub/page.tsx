@@ -36,7 +36,7 @@ export default async function KycStubPage({
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 bg-paper px-6 py-16 text-center">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-6 text-center">
       <h1 className="font-serif text-xl font-medium text-ink">
         Подтверждение личности (заглушка)
       </h1>
@@ -47,6 +47,6 @@ export default async function KycStubPage({
       <form action={approve}>
         <Button type="submit">Симулировать успешное прохождение</Button>
       </form>
-    </main>
+    </div>
   );
 }

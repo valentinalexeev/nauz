@@ -1,20 +1,16 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Book } from "@/lib/types";
-import { AppShell } from "@/components/layout/app-shell";
 
 export default async function BooksPage() {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   const { data: books } = await supabase
     .from("books")
     .select("*")
     .order("title", { ascending: true });
 
   return (
-    <AppShell active="books" userEmail={user?.email ?? null}>
+    <>
       <h1 className="font-serif text-3xl font-medium text-ink">Книги по главам</h1>
 
       {!books?.length ? (
@@ -35,6 +31,6 @@ export default async function BooksPage() {
           ))}
         </ul>
       )}
-    </AppShell>
+    </>
   );
 }

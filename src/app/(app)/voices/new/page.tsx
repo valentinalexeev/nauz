@@ -3,14 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function NewVoicePage() {
   const router = useRouter();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +22,6 @@ export default function NewVoicePage() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
     supabase
       .from("kyc_verifications")
       .select("id")
@@ -87,7 +84,7 @@ export default function NewVoicePage() {
   }
 
   return (
-    <AppShell active="voices" userEmail={userEmail}>
+    <>
       <div className="text-[13px] font-bold tracking-wide text-clay uppercase">
         Шаг 1 из 3 · Голос
       </div>
@@ -147,6 +144,6 @@ export default function NewVoicePage() {
               : "Продолжить к подтверждению личности"}
         </Button>
       </form>
-    </AppShell>
+    </>
   );
 }
