@@ -7,7 +7,7 @@ async function resolveLink(token: string) {
   const admin = createSupabaseAdminClient();
   const { data: link } = await admin
     .from("book_share_links")
-    .select("book_id, voice_id")
+    .select("book_id, owner_id")
     .eq("share_token", token)
     .single();
   return link;
@@ -33,11 +33,11 @@ export async function generateMetadata({
 }
 
 /**
- * Публичная страница книги, озвученной КОНКРЕТНЫМ голосом — без
- * авторизации, по аналогии с /s/[token] для отдельных сказок. Ссылка
- * привязана к паре (книга, голос) — см. миграцию 0019 и
- * /api/books/[bookId]/share — поэтому здесь всегда только записи ЭТОГО
- * голоса, независимо от того, кто ещё озвучивал ту же книгу.
+ * Публичная страница книги для конкретного ВЛАДЕЛЬЦА — без авторизации,
+ * по аналогии с /s/[token] для отдельных сказок. Ссылка привязана к паре
+ * (книга, владелец) — см. миграцию 0020 и /api/books/[bookId]/share —
+ * поэтому показывает записи ЛЮБЫХ голосов этого владельца (разные главы
+ * могли озвучить разные его голоса), но никогда — чужие.
  */
 export default async function SharedBookPage({
   params,
@@ -70,7 +70,7 @@ export default async function SharedBookPage({
         .from("book_chapter_generations")
         .select("chapter_id, audio_url, recap_audio_url, recap_delay_seconds")
         .in("chapter_id", chapterIds)
-        .eq("voice_id", link.voice_id)
+        .eq("owner_id", link.owner_id)
         .eq("status", "ready")
         .order("created_at", { ascending: false })
     : { data: [] as { chapter_id: string; audio_url: string | null; recap_audio_url: string | null; recap_delay_seconds: number }[] };

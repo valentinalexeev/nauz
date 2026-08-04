@@ -42,7 +42,11 @@ export function BookReader({
   siteUrl: string;
 }) {
   const router = useRouter();
-  const [voiceId, setVoiceId] = useState(voices[0]?.id ?? "");
+  // Разные главы одной книги может читать разный голос — выбор голоса
+  // per-chapter, а не один общий на всю книгу.
+  const [chapterVoiceId, setChapterVoiceId] = useState<Record<string, string>>(
+    () => Object.fromEntries(chapters.map((c) => [c.id, voices[0]?.id ?? ""])),
+  );
   const [speed, setSpeed] = useState(1.0);
   const [includeRecap, setIncludeRecap] = useState(true);
   const [recapDelaySeconds, setRecapDelaySeconds] = useState(5);
@@ -71,7 +75,12 @@ export function BookReader({
     const res = await fetch(`/api/books/${bookId}/chapters/${chapterId}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voiceId, speed, includeRecap, recapDelaySeconds }),
+      body: JSON.stringify({
+        voiceId: chapterVoiceId[chapterId],
+        speed,
+        includeRecap,
+        recapDelaySeconds,
+      }),
     });
 
     if (!res.ok) {
@@ -89,11 +98,7 @@ export function BookReader({
     setSharing(true);
     setError(null);
 
-    const res = await fetch(`/api/books/${bookId}/share`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voiceId }),
-    });
+    const res = await fetch(`/api/books/${bookId}/share`, { method: "POST" });
 
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -117,23 +122,6 @@ export function BookReader({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="voice-select">Чьим голосом читать?</Label>
-          <Select
-            id="voice-select"
-            value={voiceId}
-            onChange={(e) => {
-              setVoiceId(e.target.value);
-              setShareUrl(null);
-            }}
-          >
-            {voices.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.label}
-              </option>
-            ))}
-          </Select>
-        </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="speed-select">Скорость речи</Label>
           <Select
@@ -171,14 +159,15 @@ export function BookReader({
         </label>
       </div>
       <p className="text-xs text-neutral-500">
-        Настройки применяются при озвучке новой главы — уже готовые записи
-        не меняются.
+        Эти настройки применяются при озвучке новой главы — уже готовые
+        записи не меняются. Голос выбирается отдельно для каждой главы ниже
+        — можно, например, читать одну главу мамой, другую папой.
       </p>
 
       <div className="flex flex-col gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm">
         <p className="text-neutral-600">
-          Ссылка на книгу этим голосом без входа в Науз — можно отправить
-          кому угодно.
+          Ссылка на книгу без входа в Науз — покажет все главы, какими бы
+          вашими голосами вы их ни озвучили.
         </p>
         {shareUrl ? (
           <div className="flex items-center gap-2">
@@ -212,6 +201,7 @@ export function BookReader({
         {chapters
           .sort((a, b) => a.order_index - b.order_index)
           .map((chapter) => {
+            const voiceId = chapterVoiceId[chapter.id] ?? voices[0]?.id ?? "";
             const generation = generationByKey[`${chapter.id}:${voiceId}`];
             const generating = generatingChapterId === chapter.id;
             return (
@@ -220,9 +210,33 @@ export function BookReader({
                 id={`chapter-${chapter.order_index}`}
                 className="rounded-lg border border-neutral-200 px-4 py-4 flex flex-col gap-3 scroll-mt-6"
               >
-                <p className="text-sm font-medium text-neutral-900">
-                  Глава {chapter.order_index}. {chapter.title}
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-neutral-900">
+                    Глава {chapter.order_index}. {chapter.title}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`voice-select-${chapter.id}`} className="text-xs">
+                      Кто прочитает?
+                    </Label>
+                    <Select
+                      id={`voice-select-${chapter.id}`}
+                      value={voiceId}
+                      onChange={(e) =>
+                        setChapterVoiceId((prev) => ({
+                          ...prev,
+                          [chapter.id]: e.target.value,
+                        }))
+                      }
+                      className="w-auto"
+                    >
+                      {voices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
                 <p className="whitespace-pre-wrap text-sm text-neutral-600">
                   {chapter.text_plain}
                 </p>

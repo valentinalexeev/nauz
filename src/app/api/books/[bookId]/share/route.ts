@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
- * Отдаёт (создавая при необходимости) публичную ссылку на пару книга+голос
- * — ссылка привязана к КОНКРЕТНОМУ голосу, а не к книге целиком: книгу
- * могут читать голоса разных пользователей, и общая на всех ссылка могла
- * бы показать чужую запись вместо своей (см. миграцию 0019).
+ * Отдаёт (создавая при необходимости) публичную ссылку на книгу для
+ * ТЕКУЩЕГО пользователя — одна ссылка на пару (книга, владелец), а не на
+ * конкретный голос: разные главы могут быть озвучены разными голосами
+ * ОДНОГО владельца (см. миграцию 0020), ссылка показывает все главы,
+ * какими бы своими голосами он их ни озвучил.
  */
 export async function POST(
   request: Request,
@@ -21,24 +22,10 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { voiceId } = (await request.json()) as { voiceId: string };
-
-  const { data: voice } = await supabase
-    .from("voices")
-    .select("id")
-    .eq("id", voiceId)
-    .eq("owner_id", user.id)
-    .single();
-
-  if (!voice) {
-    return NextResponse.json({ error: "voice not found" }, { status: 404 });
-  }
-
   const { data: existing } = await supabase
     .from("book_share_links")
     .select("share_token")
     .eq("book_id", bookId)
-    .eq("voice_id", voiceId)
     .eq("owner_id", user.id)
     .single();
 
@@ -48,7 +35,7 @@ export async function POST(
 
   const { data: created, error } = await supabase
     .from("book_share_links")
-    .insert({ book_id: bookId, voice_id: voiceId, owner_id: user.id })
+    .insert({ book_id: bookId, owner_id: user.id })
     .select("share_token")
     .single();
 
