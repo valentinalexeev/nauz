@@ -50,7 +50,13 @@ export function BookReader({
   const [speed, setSpeed] = useState(1.0);
   const [includeRecap, setIncludeRecap] = useState(true);
   const [recapDelaySeconds, setRecapDelaySeconds] = useState(5);
-  const [generatingChapterId, setGeneratingChapterId] = useState<string | null>(null);
+  // Ключ chapterId:voiceId, а не просто chapterId — иначе UI не мог
+  // корректно отследить несколько одновременных озвучек (например, двух
+  // разных глав или двух голосов одной главы параллельно): единственное
+  // значение "какая глава сейчас озвучивается" сбивалось со второй
+  // одновременной генерации, хотя сами запросы на сервере не блокируют
+  // друг друга и параллелятся нормально.
+  const [generatingKeys, setGeneratingKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -68,30 +74,30 @@ export function BookReader({
     );
   }
 
-  async function handleGenerate(chapterId: string) {
-    setGeneratingChapterId(chapterId);
+  async function handleGenerate(chapterId: string, voiceId: string) {
+    const key = `${chapterId}:${voiceId}`;
+    setGeneratingKeys((prev) => new Set(prev).add(key));
     setError(null);
 
     const res = await fetch(`/api/books/${bookId}/chapters/${chapterId}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        voiceId: chapterVoiceId[chapterId],
-        speed,
-        includeRecap,
-        recapDelaySeconds,
-      }),
+      body: JSON.stringify({ voiceId, speed, includeRecap, recapDelaySeconds }),
+    });
+
+    setGeneratingKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
     });
 
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       setError(body.error ?? "Не удалось озвучить главу");
-      setGeneratingChapterId(null);
       return;
     }
 
     router.refresh();
-    setGeneratingChapterId(null);
   }
 
   async function handleShare() {
@@ -208,7 +214,7 @@ export function BookReader({
             );
             const nextVoiceId = chapterVoiceId[chapter.id] ?? voices[0]?.id ?? "";
             const alreadyHasNextVoice = existingVoices.some((v) => v.id === nextVoiceId);
-            const generating = generatingChapterId === chapter.id;
+            const generating = generatingKeys.has(`${chapter.id}:${nextVoiceId}`);
             return (
               <li
                 key={chapter.id}
@@ -261,7 +267,7 @@ export function BookReader({
                     type="button"
                     size="sm"
                     disabled={generating}
-                    onClick={() => handleGenerate(chapter.id)}
+                    onClick={() => handleGenerate(chapter.id, nextVoiceId)}
                     className="rounded-full"
                   >
                     {generating
