@@ -224,30 +224,34 @@ export async function addStoryVoice({
     throw new Error("story not found");
   }
 
-  // Письма (kind = "letter") хранят свой текст прямо в stories.text и не
-  // имеют template_id — TTS-разметка для них сейчас не production, поэтому
-  // повторная озвучка другим голосом пока доступна только для сказок из
-  // шаблонов (совпадает с ограничением в /api/stories/generate).
-  if (!story.template_id) {
-    throw new Error("story has no template");
-  }
+  // Сказки из шаблона несут готовую TTS-разметку (интонационные теги,
+  // ударения) в story_templates.text_marked. У писем (kind = "letter")
+  // своего текста, введённого пользователем, разметки нет и взять её
+  // неоткуда — озвучиваем как есть, обычным текстом (stories.text), без
+  // тегов и ударений. Хуже с точки зрения выразительности речи, но лучше,
+  // чем совсем не иметь возможности озвучить уже созданное письмо.
+  let textMarked = story.text;
+  let languageCode = "ru";
+  if (story.template_id) {
+    const { data: template } = await admin
+      .from("story_templates")
+      .select("*")
+      .eq("id", story.template_id)
+      .single();
 
-  const { data: template } = await admin
-    .from("story_templates")
-    .select("*")
-    .eq("id", story.template_id)
-    .single();
-
-  if (!template) {
-    throw new Error("template not found");
+    if (!template) {
+      throw new Error("template not found");
+    }
+    textMarked = template.text_marked;
+    languageCode = template.language;
   }
 
   await synthesizeAndStoreGeneration(admin, {
     userId,
     storyId: story.id,
     voice,
-    textMarked: template.text_marked,
-    languageCode: template.language,
+    textMarked,
+    languageCode,
     speed,
   });
 

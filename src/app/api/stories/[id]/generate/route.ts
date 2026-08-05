@@ -39,7 +39,6 @@ export async function POST(
     const status = [
       "voice not ready",
       "story not found",
-      "story has no template",
       "template not found",
       "invalid speed",
     ].includes(message)
