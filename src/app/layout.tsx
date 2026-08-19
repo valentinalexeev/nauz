@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Piazzolla } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // Шрифты дизайн-системы: Manrope — интерфейс, Piazzolla — тексты сказок/
@@ -39,6 +40,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-paper font-sans text-ink">
         {children}
+        <Analytics />
       </body>
     </html>
   );
