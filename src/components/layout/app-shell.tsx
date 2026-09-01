@@ -38,6 +38,14 @@ function useActiveSection(): AppShellSection {
  * Активная вкладка определяется на клиенте по текущему пути
  * (usePathname/useSearchParams), а не передаётся пропом — иначе каждая
  * авторизованная страница должна была бы сама знать, в каком она разделе.
+ *
+ * На узких экранах постоянный сайдбар в 224px съедал бы половину ширины
+ * экрана, поэтому < md он скрыт (hidden md:flex), а вместо него — верхняя
+ * плашка с логотипом/юзером (sticky, чтобы оставалась при скролле длинных
+ * страниц) и нижняя таб-бар-навигация (fixed, всегда под рукой большим
+ * пальцем — привычный мобильный паттерн для 2-3 разделов). Обе мобильные
+ * панели не требуют собственного состояния (не бургер-меню с drawer) —
+ * проще и не мигает при гидратации.
  */
 export function AppShell({
   userEmail,
@@ -49,8 +57,29 @@ export function AppShell({
   const active = useActiveSection();
 
   return (
-    <div className="flex min-h-screen w-full">
-      <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-border bg-paper px-5 py-8">
+    // min-h-dvh, а не min-h-screen (100vh): на реальных мобильных Chrome/
+    // Safari 100vh считается с учётом скрывающейся адресной строки, из-за
+    // чего высота "прыгает" при скролле и fixed-элементы (нижняя
+    // таб-навигация) съезжают за пределы видимой области — в эмуляции
+    // DevTools/headless-браузера это не воспроизводится, только на
+    // настоящем устройстве. dvh пересчитывается под фактический видимый
+    // вьюпорт и не имеет этой проблемы.
+    <div className="flex min-h-dvh w-full flex-col md:flex-row">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-paper px-4 py-3 md:hidden">
+        <Link
+          href="/dashboard"
+          className="font-serif text-lg font-semibold text-ink no-underline"
+        >
+          Науз
+        </Link>
+        {userEmail && (
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-border text-xs font-semibold text-ink-soft">
+            {userEmail.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+      </header>
+
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-border bg-paper px-5 py-8 md:flex">
         <Link
           href="/dashboard"
           className="mb-9 px-2 font-serif text-xl font-semibold text-ink no-underline"
@@ -82,9 +111,25 @@ export function AppShell({
           </div>
         )}
       </aside>
-      <main className="min-w-0 flex-1 px-10 py-12 md:px-14">
+
+      <main className="min-w-0 flex-1 px-4 py-6 pb-24 sm:px-6 md:px-14 md:py-12 md:pb-12">
         <div className="mx-auto flex max-w-3xl flex-col gap-8">{children}</div>
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
+        {TABS.map((tab) => (
+          <Link
+            key={tab.section}
+            href={`/dashboard?tab=${tab.section}`}
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-xs font-semibold no-underline transition-colors",
+              active === tab.section ? "text-clay" : "text-ink-soft",
+            )}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

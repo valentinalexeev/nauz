@@ -49,14 +49,14 @@ export function ShareLink({
         Ссылка для проигрывания без входа в Науз — можно отправить ребёнку.
         Покажет все голоса, которыми вы озвучили эту запись.
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           readOnly
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className="flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
         />
-        <Button type="button" size="sm" onClick={handleCopy}>
+        <Button type="button" size="sm" className="w-fit" onClick={handleCopy}>
           {copied ? "Скопировано" : "Скопировать"}
         </Button>
       </div>

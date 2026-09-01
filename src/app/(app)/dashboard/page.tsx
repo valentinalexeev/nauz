@@ -92,7 +92,7 @@ export default async function DashboardPage({
 
 function TabHeader({ tab }: { tab: DashboardTab }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <h1 className="font-serif text-3xl font-medium text-ink">{TAB_TITLE[tab]}</h1>
         <p className="mt-1 text-sm text-ink-soft">{TAB_SUBTITLE[tab]}</p>
