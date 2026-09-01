@@ -57,7 +57,14 @@ export function AppShell({
   const active = useActiveSection();
 
   return (
-    <div className="flex min-h-screen w-full flex-col md:flex-row">
+    // min-h-dvh, а не min-h-screen (100vh): на реальных мобильных Chrome/
+    // Safari 100vh считается с учётом скрывающейся адресной строки, из-за
+    // чего высота "прыгает" при скролле и fixed-элементы (нижняя
+    // таб-навигация) съезжают за пределы видимой области — в эмуляции
+    // DevTools/headless-браузера это не воспроизводится, только на
+    // настоящем устройстве. dvh пересчитывается под фактический видимый
+    // вьюпорт и не имеет этой проблемы.
+    <div className="flex min-h-dvh w-full flex-col md:flex-row">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-paper px-4 py-3 md:hidden">
         <Link
           href="/dashboard"
