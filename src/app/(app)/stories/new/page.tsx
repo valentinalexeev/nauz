@@ -105,7 +105,7 @@ export default function NewStoryPage() {
               </TabPill>
             </div>
 
-            <div className="min-h-[280px] rounded-2xl bg-surface p-8">
+            <div className="min-h-[280px] rounded-2xl bg-surface p-5 sm:p-8">
               {kind === "fairy_tale" ? (
                 templates.length === 0 ? (
                   <p className="text-sm text-ink-soft">Пока нет ни одной готовой сказки.</p>

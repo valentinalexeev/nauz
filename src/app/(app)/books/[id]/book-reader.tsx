@@ -189,14 +189,14 @@ export function BookReader({
           вашими голосами вы их ни озвучили.
         </p>
         {shareUrl ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               readOnly
               value={shareUrl}
               onFocus={(e) => e.currentTarget.select()}
-              className="flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-paper px-3 py-1.5 text-xs text-ink"
             />
-            <Button type="button" size="sm" onClick={handleCopyShare}>
+            <Button type="button" size="sm" className="w-fit" onClick={handleCopyShare}>
               {copied ? "Скопировано" : "Скопировать"}
             </Button>
           </div>
