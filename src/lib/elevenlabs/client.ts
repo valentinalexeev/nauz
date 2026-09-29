@@ -105,7 +105,7 @@ export async function generateSpeech({
   text,
   languageCode,
   speed = 1.0,
-  modelId = "eleven_v3",
+  modelId = "eleven_v4",
   previousText,
   nextText,
   previousRequestIds,

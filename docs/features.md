@@ -118,7 +118,7 @@ kyc_approved → cloning → ready → (revoked | failed)`; разделы 3.1�
 
 ## 5. Генерация аудио
 
-5.1. **Синтез речи** — ElevenLabs `eleven_v3`
+5.1. **Синтез речи** — ElevenLabs `eleven_v4`
      ([src/lib/elevenlabs/client.ts](../src/lib/elevenlabs/client.ts)),
      голосом конкретного `voice_id` пользователя.
 
